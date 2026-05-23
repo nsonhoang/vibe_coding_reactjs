@@ -34,6 +34,8 @@ export const shipmentService = {
     ghnOrderCode?: string;
     status?: string;
     shippingService?: string;
+    createFrom?: string;
+    createTo?: string;
   }): Promise<ShipmentListResponse> => {
     const response = await api.get<ShipmentListResponse>("/v1/shipments", { params });
     return response.data;

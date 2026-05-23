@@ -16,7 +16,7 @@ import {
   Minus,
   Megaphone
 } from "lucide-react";
-import { VouchersGrid } from "@/components/admin-vouchers/vouchers-grid";
+import { VouchersTable } from "@/components/admin-vouchers/vouchers-table";
 import { VoucherDialog } from "@/components/admin-vouchers/voucher-dialog";
 import { voucherService } from "@/services/voucher-service";
 import type { Voucher } from "@/services/voucher-service";
@@ -24,8 +24,10 @@ import type { Voucher } from "@/services/voucher-service";
 export const AdminVouchers: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null);
@@ -42,6 +44,14 @@ export const AdminVouchers: React.FC = () => {
   const [formEndDate, setFormEndDate] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
 
+  // Strictly 10 items per page standard
+  const limit = 10;
+
+  // Reset page when search or status filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter]);
+
   // Debouncing search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -50,13 +60,23 @@ export const AdminVouchers: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // 1. Fetch Vouchers
+  // 1. Fetch Vouchers with backend pagination and active filters
   const { data: vouchersResponse, isLoading: isLoadingVouchers, error: vouchersError } = useQuery({
-    queryKey: ["vouchers"],
-    queryFn: () => voucherService.getVouchers({ sortBy: "createdAt", sortOrder: "desc", limit: 100 }),
+    queryKey: ["vouchers", page, debouncedSearch, statusFilter],
+    queryFn: () => voucherService.getVouchers({
+      page,
+      limit,
+      keyword: debouncedSearch.trim() || undefined,
+      isActive: statusFilter === "ACTIVE" ? true : statusFilter === "INACTIVE" ? false : undefined,
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    }),
   });
 
-  const vouchers = vouchersResponse?.data?.data || vouchersResponse?.data?.items || [];
+  const paginatedResult = vouchersResponse?.data;
+  const vouchers = paginatedResult?.data || paginatedResult?.items || [];
+  const totalItems = paginatedResult?.meta?.totalItems || 0;
+  const totalPages = paginatedResult?.meta?.totalPages || 1;
 
   // 2. Create Voucher Mutation
   const createVoucherMutation = useMutation({
@@ -179,10 +199,6 @@ export const AdminVouchers: React.FC = () => {
     }
   };
 
-  const filteredVouchers = vouchers.filter((v) =>
-    v.code.toLowerCase().includes(debouncedSearch.toLowerCase())
-  );
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -228,14 +244,25 @@ export const AdminVouchers: React.FC = () => {
         <div className="p-5 space-y-5">
           {/* Control Bar */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute inset-y-0 left-3 h-4 w-4 my-auto text-slate-400" />
-              <Input
-                placeholder="Tìm kiếm voucher bằng Code..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-card border-slate-200 dark:border-slate-800 text-xs focus:ring-1 focus:ring-primary h-9 rounded-lg"
-              />
+            <div className="flex flex-wrap items-center gap-3 max-w-xl flex-1">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute inset-y-0 left-3 h-4 w-4 my-auto text-slate-400" />
+                <Input
+                  placeholder="Tìm kiếm voucher bằng Code..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 bg-card border-slate-200 dark:border-slate-800 text-xs focus:ring-1 focus:ring-primary h-9 rounded-lg"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs h-9 rounded-lg px-3 focus:ring-1 focus:ring-primary focus:border-primary text-slate-600 dark:text-slate-350 cursor-pointer font-medium outline-none"
+              >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ACTIVE">Đang hoạt động</option>
+                <option value="INACTIVE">Tạm dừng hoạt động</option>
+              </select>
             </div>
             <Button 
               onClick={handleOpenAdd} 
@@ -257,12 +284,17 @@ export const AdminVouchers: React.FC = () => {
               Lỗi đồng bộ dữ liệu: {(vouchersError as any).message || "Không thể kết nối đến máy chủ API"}
             </div>
           ) : (
-            /* Grid of Vouchers */
-            <VouchersGrid
-              vouchers={filteredVouchers}
+            /* Table of Vouchers matching users_promotions.html */
+            <VouchersTable
+              vouchers={vouchers}
               onEdit={handleOpenEdit}
               onToggleStatus={toggleVoucherStatus}
               onDelete={handleDelete}
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              onPageChange={setPage}
+              isSubmitting={createVoucherMutation.isPending || updateVoucherMutation.isPending || deleteVoucherMutation.isPending}
             />
           )}
         </div>

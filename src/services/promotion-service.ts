@@ -8,6 +8,8 @@ export interface Promotion {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  bookIds?: string[];
+  bookCount?: number;
   books: { id: string; title: string; price: number }[];
 }
 
@@ -33,6 +35,7 @@ export const promotionService = {
   getPromotions: async (params?: {
     page?: number;
     limit?: number;
+    keyword?: string;
     isActive?: boolean;
     startDate?: string;
     endDate?: string;

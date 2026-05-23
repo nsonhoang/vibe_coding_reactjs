@@ -1,8 +1,7 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Eye, CheckCircle, Ban, FileText } from "lucide-react";
+import { Eye, CheckCircle, Ban, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Order } from "@/services/order-service";
 
 interface OrdersTableProps {
@@ -10,6 +9,10 @@ interface OrdersTableProps {
   onOpenDetail: (ord: Order) => void;
   onUpdateStatusQuick: (id: string, newStatus: Order["status"]) => void;
   isSubmitting: boolean;
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
 }
 
 export const OrdersTable: React.FC<OrdersTableProps> = ({
@@ -17,42 +20,46 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
   onOpenDetail,
   onUpdateStatusQuick,
   isSubmitting,
+  currentPage,
+  totalPages,
+  totalItems,
+  onPageChange,
 }) => {
   const getStatusBadge = (status: Order["status"]) => {
     switch (status) {
       case "PENDING":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-            Chờ duyệt
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+            CHỜ DUYỆT
           </span>
         );
       case "PROCESSING":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-blue-500/10 text-blue-600 dark:text-blue-400">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-            Đang xử lý
+            ĐANG XỬ LÝ
           </span>
         );
       case "SHIPPED":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
             <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-            Đang giao
+            ĐANG GIAO
           </span>
         );
       case "COMPLETED":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Hoàn thành
+            HOÀN THÀNH
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-red-500/10 text-red-650 dark:text-red-400">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-            Đã hủy
+            ĐÃ HỦY
           </span>
         );
     }
@@ -63,7 +70,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
       <CardHeader className="p-5 border-b border-slate-100 dark:border-slate-800/80">
         <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-850 dark:text-slate-100 flex items-center gap-2">
           <FileText className="h-4.5 w-4.5 text-primary" />
-          Quản lý Đơn hàng
+          Danh sách Đơn hàng
         </CardTitle>
         <CardDescription className="text-[11px] text-slate-500 mt-1">
           Duyệt đơn, in phiếu xuất kho và gán mã vận đơn để kích hoạt lộ trình giao nhận
@@ -89,26 +96,39 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                   ?.map((it: any) => `${it.book?.title || "Sách"} (x${it.quantity})`)
                   .join(", ") || "Không rõ";
 
-                const dateStr = ord.createdAt ? new Date(ord.createdAt).toLocaleString("vi-VN") : "Không rõ";
+                const dateStr = ord.createdAt
+                  ? new Date(ord.createdAt).toLocaleString("vi-VN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })
+                  : "Không rõ";
 
                 return (
                   <tr key={ord.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/30 transition-colors group">
-                    <td className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400 font-mono text-xs">
+                    <td className="px-6 py-4 font-bold text-slate-550 dark:text-slate-450 font-mono text-xs">
                       #{ord.id.substring(0, 8).toUpperCase()}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-200">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs">{ord.customerName}</span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-medium">{ord.shippingPhone}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase">
+                          {(ord.customerName || "KA").substring(0, 2)}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs">{ord.customerName}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold">{ord.shippingPhone}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">
+                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs font-semibold">
                       {dateStr}
                     </td>
-                    <td className="px-6 py-4 text-slate-650 dark:text-slate-350 max-w-xs truncate text-xs" title={itemsSummary}>
+                    <td className="px-6 py-4 text-slate-650 dark:text-slate-350 max-w-xs truncate text-xs font-medium" title={itemsSummary}>
                       {itemsSummary}
                     </td>
-                    <td className="px-6 py-4 font-extrabold text-xs text-primary dark:text-primary-fixed-dim">
+                    <td className="px-6 py-4 font-black text-xs text-primary dark:text-primary-fixed-dim">
                       {(ord.totalPrice || 0).toLocaleString()} ₫
                     </td>
                     <td className="px-6 py-4">
@@ -156,9 +176,59 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                   </tr>
                 );
               })}
+              {orders.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 text-xs font-bold">
+                    Không tìm thấy đơn hàng nào khớp với bộ lọc.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls inside the card */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+              Đang hiển thị <span className="font-extrabold text-slate-700 dark:text-slate-350">{Math.min((currentPage - 1) * 10 + 1, totalItems)}</span>
+              {" - "}
+              <span className="font-extrabold text-slate-700 dark:text-slate-350">{Math.min(currentPage * 10, totalItems)}</span> trong tổng số{" "}
+              <span className="font-extrabold text-primary dark:text-primary-fixed-dim">{totalItems}</span> đơn hàng
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="p-1.5 border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+              </button>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                <button
+                  key={pg}
+                  onClick={() => onPageChange(pg)}
+                  className={`w-7.5 h-7.5 rounded text-xs font-extrabold transition-all cursor-pointer ${
+                    currentPage === pg
+                      ? "bg-primary text-white shadow-sm shadow-primary/20"
+                      : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  {pg}
+                </button>
+              ))}
+
+              <button
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="p-1.5 border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              >
+                <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+              </button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -11,14 +11,17 @@ export interface InventoryItem {
     price: number;
     categories: { name: string }[];
   };
+  logs?: InventoryLog[];
 }
 
 export interface InventoryLog {
   id: string;
   inventoryId: string;
   change: number;
-  type: "IMPORT" | "EXPORT" | "ADJUST";
+  type: "IMPORT" | "EXPORT" | "ADJUST" | string;
   reason?: string;
+  beforeQty?: number;
+  afterQty?: number;
   createdAt: string;
 }
 

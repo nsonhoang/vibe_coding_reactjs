@@ -33,6 +33,7 @@ export const voucherService = {
   getVouchers: async (params?: {
     page?: number;
     limit?: number;
+    keyword?: string;
     isActive?: boolean;
     now?: boolean;
     sortBy?: "createdAt" | "code" | "startDate" | "endDate" | "usedCount";
