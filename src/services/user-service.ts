@@ -1,15 +1,19 @@
 import { api } from "@/lib/api-client";
 import type { PaginatedResult } from "./book-service";
 
+
 export interface UserResponseDto {
   id: string;
   email: string;
-  fullName: string;
+  name: string;
   phone?: string;
-  isActive: boolean;
+  status: UserStatus;
   role: { id: string; name: string } | string;
   createdAt: string;
 }
+
+
+export type UserStatus = "ACTIVE" | "INACTIVE";
 
 export interface UserListResponse {
   success: boolean;
@@ -44,8 +48,14 @@ export const userService = {
     name?: string;
     phone?: string;
     roleId?: string;
+    status?: UserStatus;
   }): Promise<UserDetailResponse> => {
     const response = await api.patch<UserDetailResponse>(`/v1/users/${id}`, data);
+    return response.data;
+  },
+
+  deleteUser: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete<{ success: boolean; message: string }>(`/v1/users/${id}`);
     return response.data;
   },
 };

@@ -12,6 +12,7 @@ export const StaffOrders: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<"ALL" | Order["status"]>("ALL");
 
   // Form states to update shipping
   const [formStatus, setFormStatus] = useState<Order["status"]>("PENDING");
@@ -63,35 +64,71 @@ export const StaffOrders: React.FC = () => {
     updateStatusMutation.mutate({ id, status: newStatus });
   };
 
-  const orders = ordersData?.data?.items || [];
+  // Get raw orders & apply client-side status filter
+  const rawOrders = ordersData?.data?.data || ordersData?.data?.items || [];
+  const orders = rawOrders.filter(
+    (ord: Order) => selectedStatus === "ALL" || ord.status === selectedStatus
+  );
 
   return (
     <div className="space-y-6">
-      {/* Search and Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute inset-y-0 left-3 h-4 w-4 my-auto text-muted-foreground" />
-          <Input
-            placeholder="Tìm theo Mã đơn hàng hoặc Tên khách hàng..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-card border-border text-xs"
-          />
+      {/* Page Header */}
+      <div>
+        <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">Quản lý đơn hàng</h2>
+        <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">Tra cứu trạng thái, phê duyệt vận đơn và thiết lập lộ trình giao nhận bưu tá.</p>
+      </div>
+
+      {/* Bento Search and Filters Grid */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          {/* Keyword Search */}
+          <div className="space-y-1.5 md:col-span-1">
+            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Tìm kiếm đơn hàng</label>
+            <div className="relative">
+              <Search className="absolute inset-y-0 left-3 h-3.5 w-3.5 my-auto text-slate-400" />
+              <Input
+                placeholder="Mã đơn hàng, tên khách..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-lg h-9 w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Status Filters */}
+          <div className="space-y-1.5 md:col-span-2">
+            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Trạng thái vận đơn</label>
+            <div className="flex flex-wrap gap-1 p-1 bg-slate-50 dark:bg-slate-850 rounded-lg border border-slate-200 dark:border-slate-800 min-h-9 items-center">
+              {(["ALL", "PENDING", "PROCESSING", "SHIPPED", "COMPLETED", "CANCELLED"] as const).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setSelectedStatus(st)}
+                  className={`flex-1 min-w-[70px] py-1 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                    selectedStatus === st
+                      ? "bg-primary text-white shadow-sm shadow-primary/10"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  {st === "ALL" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "PROCESSING" ? "Đang xử lý" : st === "SHIPPED" ? "Đang giao" : st === "COMPLETED" ? "Hoàn thành" : "Đã hủy"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
       {isLoading ? (
         <div className="flex flex-col justify-center items-center py-20 space-y-4">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-xs text-muted-foreground font-semibold">Đang tải danh sách vận đơn...</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Đang tải danh sách vận đơn...</p>
         </div>
       ) : error ? (
-        <div className="p-8 text-center text-destructive font-semibold border border-destructive/20 rounded-md bg-destructive/5 text-xs">
+        <div className="p-8 text-center text-red-600 font-semibold border border-red-200 rounded-xl bg-red-50 text-xs">
           Không thể kết nối đến máy chủ: {error.message}
         </div>
       ) : orders.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground font-medium text-xs">
-          Không tìm thấy đơn hàng nào khớp với tìm kiếm.
+        <div className="text-center py-24 text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-xs">
+          Không tìm thấy đơn hàng nào khớp với bộ lọc của bạn.
         </div>
       ) : (
         /* Orders Table Card */

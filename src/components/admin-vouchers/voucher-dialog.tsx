@@ -9,20 +9,22 @@ interface VoucherDialogProps {
   isAddMode: boolean;
   formCode: string;
   setFormCode: (val: string) => void;
-  formIsPercent: boolean;
-  setFormIsPercent: (val: boolean) => void;
-  formValue: number;
-  setFormValue: (val: number) => void;
-  formMinOrder: number;
-  setFormMinOrder: (val: number) => void;
+  formDescription: string;
+  setFormDescription: (val: string) => void;
+  formDiscountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  setFormDiscountType: (val: "PERCENTAGE" | "FIXED_AMOUNT") => void;
+  formDiscountValue: number;
+  setFormDiscountValue: (val: number) => void;
+  formMinOrderValue: number;
+  setFormMinOrderValue: (val: number) => void;
   formMaxDiscount: number;
   setFormMaxDiscount: (val: number) => void;
-  formLimit: number;
-  setFormLimit: (val: number) => void;
-  formStart: string;
-  setFormStart: (val: string) => void;
-  formEnd: string;
-  setFormEnd: (val: string) => void;
+  formUsageLimit: number;
+  setFormUsageLimit: (val: number) => void;
+  formStartDate: string;
+  setFormStartDate: (val: string) => void;
+  formEndDate: string;
+  setFormEndDate: (val: string) => void;
   formIsActive: boolean;
   setFormIsActive: (val: boolean) => void;
   onSave: () => void;
@@ -34,148 +36,167 @@ export const VoucherDialog: React.FC<VoucherDialogProps> = ({
   isAddMode,
   formCode,
   setFormCode,
-  formIsPercent,
-  setFormIsPercent,
-  formValue,
-  setFormValue,
-  formMinOrder,
-  setFormMinOrder,
+  formDescription,
+  setFormDescription,
+  formDiscountType,
+  setFormDiscountType,
+  formDiscountValue,
+  setFormDiscountValue,
+  formMinOrderValue,
+  setFormMinOrderValue,
   formMaxDiscount,
   setFormMaxDiscount,
-  formLimit,
-  setFormLimit,
-  formStart,
-  setFormStart,
-  formEnd,
-  setFormEnd,
+  formUsageLimit,
+  setFormUsageLimit,
+  formStartDate,
+  setFormStartDate,
+  formEndDate,
+  setFormEndDate,
   formIsActive,
   setFormIsActive,
   onSave,
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md bg-card border-border text-foreground">
-        <DialogHeader>
-          <DialogTitle className="text-xs font-bold uppercase tracking-wider">
-            {isAddMode ? "Khởi tạo mã giảm giá mới" : "Chỉnh sửa mã giảm giá"}
+      <DialogContent className="max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-850 dark:text-white rounded-2xl p-6 shadow-xl">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="text-base font-black text-slate-850 dark:text-white uppercase tracking-tight">
+            {isAddMode ? "Tạo Voucher Giảm Giá Mới" : "Chỉnh Sửa Mã Giảm Giá"}
           </DialogTitle>
-          <DialogDescription className="text-[11px]">
-            Vui lòng khai báo các giới hạn, giá trị và ngày hiệu lực của voucher.
+          <DialogDescription className="text-xs text-slate-400 dark:text-slate-500 font-semibold leading-relaxed">
+            Thiết lập các giới hạn, giá trị giảm giá và ngày hiệu lực áp dụng thực tế trên website.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2 text-xs">
+        <div className="space-y-4 py-3 text-xs font-semibold">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="font-bold text-muted-foreground">Mã giảm giá (Code)</label>
+              <label className="text-slate-400 dark:text-slate-500">Mã giảm giá (Code)</label>
               <Input
-                placeholder="E.g. WELCOME50"
+                placeholder="E.g. SUMMER50"
                 value={formCode}
                 onChange={(e) => setFormCode(e.target.value)}
-                className="bg-card border-border uppercase font-mono"
+                disabled={!isAddMode}
+                className="bg-card border-slate-200 dark:border-slate-850 uppercase font-mono text-xs font-bold focus:ring-1 focus:ring-[#00288e] rounded-lg"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-bold text-muted-foreground">Hình thức giảm</label>
+              <label className="text-slate-400 dark:text-slate-500">Hình thức giảm</label>
               <select
-                value={formIsPercent ? "percent" : "fixed"}
-                onChange={(e) => setFormIsPercent(e.target.value === "percent")}
-                className="w-full rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                value={formDiscountType}
+                onChange={(e) => setFormDiscountType(e.target.value as "PERCENTAGE" | "FIXED_AMOUNT")}
+                disabled={!isAddMode}
+                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-900 px-3 text-xs text-slate-800 dark:text-slate-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00288e] font-semibold"
               >
-                <option value="percent">Theo phần trăm (%)</option>
-                <option value="fixed">Số tiền trực tiếp (₫)</option>
+                <option value="PERCENTAGE">Theo phần trăm (%)</option>
+                <option value="FIXED_AMOUNT">Số tiền trực tiếp (₫)</option>
               </select>
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-slate-400 dark:text-slate-500">Mô tả chương trình</label>
+            <Input
+              placeholder="E.g. Giảm giá 10% tối đa 30k cho đơn hàng hè..."
+              value={formDescription}
+              onChange={(e) => setFormDescription(e.target.value)}
+              className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg"
+            />
+          </div>
+
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label className="font-bold text-muted-foreground">Giá trị giảm</label>
+              <label className="text-slate-400 dark:text-slate-500">Giá trị giảm</label>
               <Input
                 type="number"
-                value={formValue}
-                onChange={(e) => setFormValue(Number(e.target.value))}
-                className="bg-card border-border"
+                value={formDiscountValue}
+                onChange={(e) => setFormDiscountValue(Number(e.target.value))}
+                disabled={!isAddMode}
+                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold"
               />
             </div>
 
             <div className="space-y-1.5 col-span-2">
-              <label className="font-bold text-muted-foreground">Đơn hàng tối thiểu (₫)</label>
+              <label className="text-slate-400 dark:text-slate-500">Đơn hàng tối thiểu (₫)</label>
               <Input
                 type="number"
-                value={formMinOrder}
-                onChange={(e) => setFormMinOrder(Number(e.target.value))}
-                className="bg-card border-border"
+                value={formMinOrderValue}
+                onChange={(e) => setFormMinOrderValue(Number(e.target.value))}
+                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="font-bold text-muted-foreground">Giảm tối đa (₫)</label>
+              <label className="text-slate-400 dark:text-slate-500">Giảm tối đa (₫)</label>
               <Input
                 type="number"
                 value={formMaxDiscount}
                 onChange={(e) => setFormMaxDiscount(Number(e.target.value))}
-                disabled={!formIsPercent}
-                className="bg-card border-border"
-                placeholder={!formIsPercent ? "Không áp dụng" : "Giảm tối đa"}
+                disabled={formDiscountType !== "PERCENTAGE"}
+                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold"
+                placeholder={formDiscountType !== "PERCENTAGE" ? "Không giới hạn" : "Tối đa"}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-bold text-muted-foreground">Giới hạn số lần dùng</label>
+              <label className="text-slate-400 dark:text-slate-500">Giới hạn lượt dùng</label>
               <Input
                 type="number"
-                value={formLimit}
-                onChange={(e) => setFormLimit(Number(e.target.value))}
-                className="bg-card border-border"
+                value={formUsageLimit}
+                onChange={(e) => setFormUsageLimit(Number(e.target.value))}
+                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="font-bold text-muted-foreground">Ngày bắt đầu</label>
+              <label className="text-slate-400 dark:text-slate-500">Ngày bắt đầu</label>
               <Input
                 type="date"
-                value={formStart}
-                onChange={(e) => setFormStart(e.target.value)}
-                className="bg-card border-border"
+                value={formStartDate}
+                onChange={(e) => setFormStartDate(e.target.value)}
+                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-bold text-muted-foreground">Ngày kết thúc</label>
+              <label className="text-slate-400 dark:text-slate-500">Ngày kết thúc</label>
               <Input
                 type="date"
-                value={formEnd}
-                onChange={(e) => setFormEnd(e.target.value)}
-                className="bg-card border-border"
+                value={formEndDate}
+                onChange={(e) => setFormEndDate(e.target.value)}
+                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="font-bold text-muted-foreground">Kích hoạt ban đầu</label>
+            <label className="text-slate-400 dark:text-slate-500">Trạng thái phát hành</label>
             <select
               value={formIsActive ? "active" : "inactive"}
               onChange={(e) => setFormIsActive(e.target.value === "active")}
-              className="w-full rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-900 px-3 text-xs text-slate-800 dark:text-slate-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00288e] font-semibold"
             >
-              <option value="active">Cho phép sử dụng ngay</option>
-              <option value="inactive">Tạm ngưng hoạt động</option>
+              <option value="active font-bold">Kích hoạt phát hành ngay</option>
+              <option value="inactive font-bold">Tạm ngưng hoạt động</option>
             </select>
           </div>
         </div>
 
-        <DialogFooter className="mt-4">
-          <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
+        <DialogFooter className="mt-6 gap-2">
+          <Button variant="outline" size="sm" onClick={onClose} className="text-xs font-bold rounded-lg border-slate-200 dark:border-slate-800 h-9 cursor-pointer">
             Hủy bỏ
           </Button>
-          <Button size="sm" onClick={onSave} className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs">
-            Lưu thay đổi
+          <Button 
+            size="sm" 
+            onClick={onSave} 
+            className="bg-[#00288e] hover:bg-[#00288e]/95 text-white font-bold text-xs rounded-lg px-4 h-9 shadow-md shadow-[#00288e]/10 cursor-pointer"
+          >
+            {isAddMode ? "Tạo Voucher" : "Lưu Thay Đổi"}
           </Button>
         </DialogFooter>
       </DialogContent>

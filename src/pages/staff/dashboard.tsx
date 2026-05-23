@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { StaffStatsCards } from "@/components/staff-dashboard/staff-stats-cards";
 import { FulfillmentChart } from "@/components/staff-dashboard/fulfillment-chart";
 import { PendingOrders } from "@/components/staff-dashboard/pending-orders";
+import { TopSellingBooks } from "@/components/staff-dashboard/top-selling-books";
 import { orderService } from "@/services/order-service";
 import { bookService } from "@/services/book-service";
 import { inventoryService } from "@/services/inventory-service";
@@ -32,8 +33,8 @@ export const StaffDashboard: React.FC = () => {
     queryFn: () => inventoryService.getInventory(),
   });
 
-  const orders = ordersData?.data?.items || [];
-  const books = booksData?.data?.items || [];
+  const orders = ordersData?.data?.data || ordersData?.data?.items || [];
+  const books = booksData?.data?.data || booksData?.data?.items || [];
   const inventory = inventoryData?.data || [];
 
   // 4. Calculate Stats dynamically
@@ -60,6 +61,18 @@ export const StaffDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Operating Header Block */}
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 dark:border-slate-800 pb-5">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-850 dark:text-white">Trung Tâm Điều Hành</h1>
+          <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-0.5">Báo cáo hiệu suất đóng gói đơn hàng và giám sát vận hành thực tế</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-550 animate-pulse"></span>
+          <span className="font-bold text-slate-500 dark:text-slate-400">Trạng thái: Hoạt động ổn định</span>
+        </div>
+      </div>
+
       {/* 4 Operations Stats Cards */}
       <StaffStatsCards
         pendingOrdersCount={pendingOrdersCount}
@@ -68,47 +81,56 @@ export const StaffDashboard: React.FC = () => {
         totalBooksCount={totalBooksCount}
       />
 
-      {/* Chart Section */}
+      {/* Chart & Sidebar Row */}
       <div className="grid gap-6 md:grid-cols-3">
         {/* Fulfillment area chart */}
         <div className="md:col-span-2">
           <FulfillmentChart />
         </div>
 
-        {/* Quick Operations panel */}
-        <Card className="border-border bg-card/20 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-xs font-bold uppercase tracking-wider">Lối tắt vận hành nhanh</CardTitle>
-            <CardDescription className="text-[11px]">Các nghiệp vụ nhân viên thường thực hiện</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3.5 pt-2">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate("/staff/books")}
-              className="w-full justify-start text-xs font-bold gap-3 h-10 hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
-            >
-              <BookOpen className="h-4.5 w-4.5 text-primary" />
-              Đăng bán sách mới
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => navigate("/staff/orders")}
-              className="w-full justify-start text-xs font-bold gap-3 h-10 hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
-            >
-              <ShoppingCart className="h-4.5 w-4.5 text-primary" />
-              Kiểm tra & duyệt đơn hàng
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => navigate("/staff/inventory")}
-              className="w-full justify-start text-xs font-bold gap-3 h-10 hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
-            >
-              <Package className="h-4.5 w-4.5 text-primary" />
-              Cập nhật thẻ kho
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Top Selling Books Sidebar */}
+        <div className="md:col-span-1">
+          <TopSellingBooks />
+        </div>
       </div>
+
+      {/* Quick Launchpad Shortcuts */}
+      <Card className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <CardHeader className="p-0 mb-4">
+          <CardTitle className="text-base font-bold text-slate-850 dark:text-white">
+            Lối Tắt Vận Hành Nhanh
+          </CardTitle>
+          <CardDescription className="text-xs text-slate-400 dark:text-slate-500">
+            Các nghiệp vụ nhân viên thường thực hiện hàng ngày
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0 grid gap-4 sm:grid-cols-3">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate("/staff/books")}
+            className="justify-start text-xs font-bold gap-3 h-11 border-slate-200 dark:border-slate-800 hover:border-blue-500/40 hover:bg-blue-500/5 cursor-pointer w-full text-slate-700 dark:text-slate-250 rounded-xl transition-all duration-200"
+          >
+            <BookOpen className="h-4.5 w-4.5 text-[#00288e]" />
+            Đăng bán sách mới
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate("/staff/orders")}
+            className="justify-start text-xs font-bold gap-3 h-11 border-slate-200 dark:border-slate-800 hover:border-blue-500/40 hover:bg-blue-500/5 cursor-pointer w-full text-slate-700 dark:text-slate-250 rounded-xl transition-all duration-200"
+          >
+            <ShoppingCart className="h-4.5 w-4.5 text-[#00288e]" />
+            Kiểm tra & duyệt đơn hàng
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate("/staff/inventory")}
+            className="justify-start text-xs font-bold gap-3 h-11 border-slate-200 dark:border-slate-800 hover:border-blue-500/40 hover:bg-blue-500/5 cursor-pointer w-full text-slate-700 dark:text-slate-250 rounded-xl transition-all duration-200"
+          >
+            <Package className="h-4.5 w-4.5 text-[#00288e]" />
+            Cập nhật thẻ kho
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Pending Orders Action List */}
       <PendingOrders

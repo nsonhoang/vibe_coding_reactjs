@@ -1,13 +1,17 @@
 import { api } from "@/lib/api-client";
 
 export interface PaginatedResult<T> {
-  items: T[];
+  data: T[];
+  items?: T[];
   meta: {
-    totalItems: number;
-    itemCount: number;
-    itemsPerPage: number;
+    totalItems?: number;
+    itemCount?: number;
+    itemsPerPage?: number;
     totalPages: number;
-    currentPage: number;
+    currentPage?: number;
+    page?: number;
+    limit?: number;
+    total?: number;
   };
 }
 
@@ -17,9 +21,10 @@ export interface Book {
   description?: string;
   price: number;
   thumbnail?: string;
-  status: "ACTIVE" | "INACTIVE";
+  status: BookStatus;
   categories: { id: string; name: string }[];
   authors: { id: string; name: string }[];
+  images?: { id: string; url: string; publicId: string }[];
   createdAt: string;
 }
 
@@ -35,6 +40,7 @@ export interface BookListResponse {
   data: PaginatedResult<Book>;
 }
 
+export type BookStatus = "ACTIVE" | "HIDDEN" | "DRAFT" | "ARCHIVED";
 export const bookService = {
   getBooks: async (params?: {
     page?: number;
@@ -68,11 +74,40 @@ export const bookService = {
     title?: string;
     description?: string;
     price?: number;
+    file?: File;
     categoryId?: string[];
     authorId?: string[];
-    status?: "ACTIVE" | "INACTIVE";
+    status?: BookStatus
   }): Promise<BookResponse> => {
-    const response = await api.patch<BookResponse>(`/v1/books/${id}`, data);
+    const formData = new FormData();
+    
+    if (data.title !== undefined) formData.append("title", data.title);
+    if (data.description !== undefined) formData.append("description", data.description || "");
+    if (data.price !== undefined) formData.append("price", String(data.price));
+    if (data.status !== undefined) formData.append("status", data.status);
+    
+   
+    if (data.categoryId !== undefined) {
+      data.categoryId.forEach((catId) => {
+        formData.append("categoryId[]", catId);
+      });
+    }
+    
+    if (data.authorId !== undefined) {
+      data.authorId.forEach((autId) => {
+        formData.append("authorId[]", autId);
+      });
+    }
+     if (data.file !== undefined) {
+      formData.append("file", data.file);
+    }
+    
+  
+    const response = await api.patch<BookResponse>(`/v1/books/${id}`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return response.data;
   },
 

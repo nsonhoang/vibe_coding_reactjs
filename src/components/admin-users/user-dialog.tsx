@@ -12,6 +12,8 @@ interface UserDialogProps {
   setFormName: (val: string) => void;
   formEmail: string;
   setFormEmail: (val: string) => void;
+  formPhone: string;
+  setFormPhone: (val: string) => void;
   formRole: string;
   setFormRole: (val: string) => void;
   formIsActive: boolean;
@@ -28,6 +30,8 @@ export const UserDialog: React.FC<UserDialogProps> = ({
   setFormName,
   formEmail,
   setFormEmail,
+  formPhone,
+  setFormPhone,
   formRole,
   setFormRole,
   formIsActive,
@@ -82,6 +86,16 @@ export const UserDialog: React.FC<UserDialogProps> = ({
                 onChange={(e) => setFormEmail(e.target.value)}
                 className="bg-card border-border text-xs"
                 disabled={true}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-bold text-muted-foreground">Số điện thoại</label>
+              <Input
+                placeholder="09XXXXXXXX"
+                value={formPhone}
+                onChange={(e) => setFormPhone(e.target.value)}
+                className="bg-card border-border text-xs"
               />
             </div>
 

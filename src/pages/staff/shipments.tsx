@@ -12,7 +12,7 @@ export const StaffShipments: React.FC = () => {
     queryFn: () => shipmentService.getShipments({ limit: 100 }),
   });
 
-  const shipments = shipmentsData?.data?.items || [];
+  const shipments = shipmentsData?.data?.data || shipmentsData?.data?.items || [];
 
   return (
     <div className="space-y-6">

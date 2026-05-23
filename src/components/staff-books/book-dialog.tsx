@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Image as ImageIcon, Upload, Loader2, Check } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { Category } from "@/services/category-service";
 import type { Author } from "@/services/author-service";
-import type { Book } from "@/services/book-service";
+import type { Book, BookStatus } from "@/services/book-service";
+
+import { CoverImagePanel } from "./cover-image-panel";
+import { BookInfoForm } from "./book-info-form";
+import { RelationSelectors } from "./relation-selectors";
 
 interface BookDialogProps {
   isOpen: boolean;
@@ -33,11 +36,9 @@ export const BookDialog: React.FC<BookDialogProps> = ({
   const [price, setPrice] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedAuthors, setSelectedAuthors] = useState<string[]>([]);
-  const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
+  const [status, setStatus] = useState<BookStatus>("DRAFT");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync edit mode fields
   useEffect(() => {
@@ -56,31 +57,24 @@ export const BookDialog: React.FC<BookDialogProps> = ({
       setPrice(0);
       setSelectedCategories([]);
       setSelectedAuthors([]);
-      setStatus("ACTIVE");
+      setStatus("DRAFT");
       setImagePreview("");
       setImageFile(null);
     }
   }, [book, isAddMode, isOpen]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleFileSelect = (file: File, previewUrl: string) => {
+    setImageFile(file);
+    setImagePreview(previewUrl);
   };
 
-  const toggleCategory = (catId: string) => {
+  const handleToggleCategory = (catId: string) => {
     setSelectedCategories((prev) =>
       prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
     );
   };
 
-  const toggleAuthor = (autId: string) => {
+  const handleToggleAuthor = (autId: string) => {
     setSelectedAuthors((prev) =>
       prev.includes(autId) ? prev.filter((id) => id !== autId) : [...prev, autId]
     );
@@ -127,167 +121,64 @@ export const BookDialog: React.FC<BookDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isSaving) onClose(); }}>
-      <DialogContent className="max-w-2xl bg-card border-border text-foreground overflow-y-auto max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle className="text-xs font-bold uppercase tracking-wider">
-            {isAddMode ? "Thêm mới đầu sách vào kho lưu trữ" : "Cập nhật thông tin sách"}
+      <DialogContent className="w-[95vw] md:max-w-6xl bg-card border border-primary/20 text-foreground max-h-[95vh] overflow-y-auto shadow-2xl rounded-xl px-8 py-6">
+        <DialogHeader className="border-b border-border pb-3 mb-2">
+          <DialogTitle className="text-sm font-bold uppercase tracking-wider text-primary">
+            {isAddMode ? "✨ Khai báo đầu sách mới" : "📝 Hiệu chỉnh ấn phẩm thương mại"}
           </DialogTitle>
-          <DialogDescription className="text-[11px]">
-            Khai báo chi tiết giá trị bán, thông tin xuất bản và cập nhật ảnh bìa sách.
+          <DialogDescription className="text-xs text-muted-foreground">
+            Thiết kế giao diện ngang tối ưu hiển thị tổng quan tham chiếu đầy đủ không cần cuộn trang.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-6 py-2 text-xs">
-          {/* Left Cover Image Panel */}
-          <div className="col-span-1 space-y-4">
-            <div className="relative aspect-[3/4] w-full rounded-md border border-border bg-accent/20 overflow-hidden flex flex-col items-center justify-center p-2 text-center text-muted-foreground">
-              {imagePreview ? (
-                <img src={imagePreview} alt="Cover Preview" className="h-full w-full object-cover" />
-              ) : (
-                <div className="space-y-1">
-                  <ImageIcon className="h-8 w-8 mx-auto opacity-40" />
-                  <span className="text-[9px]">Chưa có ảnh</span>
-                </div>
-              )}
-            </div>
-            
-            <input
-              type="file"
-              accept="image/png, image/jpeg, image/jpg"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
+        {/* 3-Column Zero-Scroll Horizontal Grid */}
+        <div className="grid grid-cols-12 gap-8 py-4 text-xs">
+          {/* Column 1: Image panel (3 cols) */}
+          <div className="col-span-12 lg:col-span-3 border-r border-border/40 pr-0 lg:pr-6 flex flex-col justify-between">
+            <CoverImagePanel 
+              imagePreview={imagePreview}
+              imageFile={imageFile}
+              isSaving={isSaving}
+              onFileSelect={handleFileSelect}
             />
-            
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSaving}
-              className="w-full text-[10px] gap-1.5 h-8 cursor-pointer"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              Tải ảnh bìa
-            </Button>
-            {imageFile && (
-              <p className="text-[9px] text-emerald-500 font-bold text-center truncate">
-                Đã chọn: {imageFile.name}
-              </p>
-            )}
           </div>
 
-          {/* Right Information Fields */}
-          <div className="col-span-2 space-y-3.5">
-            <div className="space-y-1">
-              <label className="font-bold text-muted-foreground">Tên sách</label>
-              <Input
-                placeholder="E.g. Đắc Nhân Tâm"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="bg-card border-border"
-                disabled={isSaving}
-              />
-            </div>
+          {/* Column 2: Core Info & Description (5 cols) */}
+          <div className="col-span-12 lg:col-span-5 border-r border-border/40 px-0 lg:px-6 space-y-4">
+            <BookInfoForm 
+              title={title}
+              setTitle={setTitle}
+              price={price}
+              setPrice={setPrice}
+              status={status}
+              setStatus={setStatus}
+              description={description}
+              setDescription={setDescription}
+              isSaving={isSaving}
+            />
+          </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="font-bold text-muted-foreground">Giá bán (₫)</label>
-                <Input
-                  type="number"
-                  value={price}
-                  onChange={(e) => setPrice(Number(e.target.value))}
-                  className="bg-card border-border"
-                  disabled={isSaving}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-muted-foreground">Trạng thái bán</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary h-[34px]"
-                  disabled={isSaving}
-                >
-                  <option value="ACTIVE">Cho phép mở bán</option>
-                  <option value="INACTIVE">Tạm dừng mở bán</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Thể loại (Multi-select) */}
-            <div className="space-y-1">
-              <label className="font-bold text-muted-foreground">Thể loại (Chọn một hoặc nhiều)</label>
-              <div className="grid grid-cols-2 gap-2 max-h-[100px] overflow-y-auto p-2 border border-border rounded bg-accent/10">
-                {categories.map((cat) => {
-                  const isChecked = selectedCategories.includes(cat.id);
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => toggleCategory(cat.id)}
-                      className={`flex items-center justify-between p-1.5 rounded border text-left text-[10px] font-semibold transition-all ${
-                        isChecked
-                          ? "border-primary/80 bg-primary/10 text-primary"
-                          : "border-border/60 hover:bg-accent/30 text-foreground/80"
-                      }`}
-                      disabled={isSaving}
-                    >
-                      <span>{cat.name}</span>
-                      {isChecked && <Check className="h-3 w-3 shrink-0 text-primary" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Tác giả (Multi-select) */}
-            <div className="space-y-1">
-              <label className="font-bold text-muted-foreground">Tác giả (Chọn một hoặc nhiều)</label>
-              <div className="grid grid-cols-2 gap-2 max-h-[100px] overflow-y-auto p-2 border border-border rounded bg-accent/10">
-                {authors.map((aut) => {
-                  const isChecked = selectedAuthors.includes(aut.id);
-                  return (
-                    <button
-                      key={aut.id}
-                      type="button"
-                      onClick={() => toggleAuthor(aut.id)}
-                      className={`flex items-center justify-between p-1.5 rounded border text-left text-[10px] font-semibold transition-all ${
-                        isChecked
-                          ? "border-primary/80 bg-primary/10 text-primary"
-                          : "border-border/60 hover:bg-accent/30 text-foreground/80"
-                      }`}
-                      disabled={isSaving}
-                    >
-                      <span>{aut.name}</span>
-                      {isChecked && <Check className="h-3 w-3 shrink-0 text-primary" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-muted-foreground">Mô tả tóm tắt sách</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Mô tả nội dung..."
-                rows={3}
-                className="w-full rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary resize-none"
-                disabled={isSaving}
-              />
-            </div>
+          {/* Column 3: Multi Selectors (4 cols) */}
+          <div className="col-span-12 lg:col-span-4 pl-0 lg:pl-2 space-y-4">
+            <RelationSelectors 
+              categories={categories}
+              selectedCategories={selectedCategories}
+              onToggleCategory={handleToggleCategory}
+              authors={authors}
+              selectedAuthors={selectedAuthors}
+              onToggleAuthor={handleToggleAuthor}
+              isSaving={isSaving}
+            />
           </div>
         </div>
 
-        <DialogFooter className="mt-4">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isSaving} className="text-xs">
+        <DialogFooter className="border-t border-border/45 pt-4 mt-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={isSaving} className="text-xs h-9 font-bold px-4">
             Hủy bỏ
           </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={isSaving} className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs gap-2">
+          <Button size="sm" onClick={handleSubmit} disabled={isSaving} className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs h-9 px-6 gap-2">
             {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Lưu sách
+            Lưu ấn phẩm
           </Button>
         </DialogFooter>
       </DialogContent>

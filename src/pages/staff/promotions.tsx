@@ -19,7 +19,7 @@ export const StaffPromotions: React.FC = () => {
     queryFn: () => bookService.getBooks({ limit: 100 }),
   });
 
-  const books = booksData?.data?.items || [];
+  const books = booksData?.data?.data || booksData?.data?.items || [];
 
   // Sync default book selection
   useEffect(() => {
@@ -34,7 +34,7 @@ export const StaffPromotions: React.FC = () => {
     queryFn: () => promotionService.getPromotions(),
   });
 
-  const promotions = promotionsData?.data?.items || [];
+  const promotions = promotionsData?.data?.data || promotionsData?.data?.items || [];
 
   // 3. Mutations
   const createPromoMutation = useMutation({

@@ -56,16 +56,16 @@ export const OrderDialog: React.FC<OrderDialogProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-[10px] text-muted-foreground font-bold">Người nhận hàng:</span>
-                  <p className="font-bold text-foreground mt-0.5">{selectedOrder.fullName}</p>
+                  <p className="font-bold text-foreground mt-0.5">{selectedOrder.customerName}</p>
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground font-bold">Số điện thoại:</span>
-                  <p className="font-mono text-foreground mt-0.5">{selectedOrder.phone}</p>
+                  <p className="font-mono text-foreground mt-0.5">{selectedOrder.shippingPhone}</p>
                 </div>
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground font-bold">Địa chỉ giao hàng:</span>
-                <p className="text-foreground/80 mt-0.5 leading-relaxed">{selectedOrder.address}</p>
+                <p className="text-foreground/80 mt-0.5 leading-relaxed">{selectedOrder.shippingAddress}</p>
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground font-bold">Sản phẩm đặt mua:</span>
@@ -73,7 +73,7 @@ export const OrderDialog: React.FC<OrderDialogProps> = ({
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground font-bold">Tổng thanh toán:</span>
-                <p className="text-foreground font-extrabold text-[13px] mt-0.5">{(selectedOrder.totalAmount || 0).toLocaleString()} ₫</p>
+                <p className="text-foreground font-extrabold text-[13px] mt-0.5">{(selectedOrder.totalPrice || 0).toLocaleString()} ₫</p>
               </div>
             </div>
 
