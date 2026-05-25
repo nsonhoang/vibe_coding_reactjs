@@ -1,25 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { 
-  Search, 
-  PlusCircle, 
-  Loader2, 
-  Send,
-  UserCheck,
-  Ticket,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Megaphone
-} from "lucide-react";
+import { Loader2, Send, PlusCircle } from "lucide-react";
+import { toast } from "sonner";
+
 import { VouchersTable } from "@/components/admin-vouchers/vouchers-table";
 import { VoucherDialog } from "@/components/admin-vouchers/voucher-dialog";
+import { VouchersFilters } from "@/components/admin-vouchers/vouchers-filters";
+import { VouchersStatsGrid } from "@/components/admin-vouchers/vouchers-stats-grid";
+
 import { voucherService } from "@/services/voucher-service";
 import type { Voucher } from "@/services/voucher-service";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const AdminVouchers: React.FC = () => {
   const queryClient = useQueryClient();
@@ -28,6 +30,8 @@ export const AdminVouchers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<"createdAt" | "code" | "startDate" | "endDate" | "usedCount">("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null);
@@ -44,81 +48,76 @@ export const AdminVouchers: React.FC = () => {
   const [formEndDate, setFormEndDate] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
 
-  // Strictly 10 items per page standard
+  // AlertDialog State
+  const [voucherToDelete, setVoucherToDelete] = useState<string | null>(null);
+
   const limit = 10;
 
-  // Reset page when search or status filters change
+  // Reset page when search, status or sorting filters change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, sortBy, sortOrder]);
 
   // Debouncing search
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-    }, 400);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // 1. Fetch Vouchers with backend pagination and active filters
+  // 1. Fetch Vouchers
   const { data: vouchersResponse, isLoading: isLoadingVouchers, error: vouchersError } = useQuery({
-    queryKey: ["vouchers", page, debouncedSearch, statusFilter],
+    queryKey: ["vouchers", page, debouncedSearch, statusFilter, sortBy, sortOrder],
     queryFn: () => voucherService.getVouchers({
       page,
       limit,
       keyword: debouncedSearch.trim() || undefined,
       isActive: statusFilter === "ACTIVE" ? true : statusFilter === "INACTIVE" ? false : undefined,
-      sortBy: "createdAt",
-      sortOrder: "desc",
+      sortBy,
+      sortOrder,
     }),
   });
 
   const paginatedResult = vouchersResponse?.data;
-  const vouchers = paginatedResult?.data || paginatedResult?.items || [];
+  const vouchers = useMemo(() => paginatedResult?.data || paginatedResult?.items || [], [paginatedResult]);
   const totalItems = paginatedResult?.meta?.totalItems || 0;
   const totalPages = paginatedResult?.meta?.totalPages || 1;
 
-  // 2. Create Voucher Mutation
+  const activeVouchersCount = useMemo(() => vouchers.filter(v => v.isActive).length, [vouchers]);
+
+  // Mutations
   const createVoucherMutation = useMutation({
     mutationFn: (data: Parameters<typeof voucherService.createVoucher>[0]) => 
       voucherService.createVoucher(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vouchers"] });
       setIsDialogOpen(false);
-      alert("Khởi tạo mã giảm giá mới thành công!");
+      toast.success("Khởi tạo mã giảm giá mới thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi tạo mã giảm giá: ${err.response?.data?.message || err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi tạo mã giảm giá: ${err.response?.data?.message || err.message}`),
   });
 
-  // 3. Update Voucher Mutation
   const updateVoucherMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof voucherService.updateVoucher>[1] }) => 
       voucherService.updateVoucher(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vouchers"] });
       setIsDialogOpen(false);
-      alert("Cập nhật mã giảm giá thành công!");
+      toast.success("Cập nhật thông tin mã giảm giá thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi cập nhật mã giảm giá: ${err.response?.data?.message || err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi cập nhật mã giảm giá: ${err.response?.data?.message || err.message}`),
   });
 
-  // 4. Delete Voucher Mutation
   const deleteVoucherMutation = useMutation({
     mutationFn: (id: string) => voucherService.deleteVoucher(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vouchers"] });
-      alert("Xóa mã giảm giá thành công!");
+      toast.success("Đã xóa mã giảm giá thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi xóa mã giảm giá: ${err.response?.data?.message || err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi xóa mã giảm giá: ${err.response?.data?.message || err.message}`),
   });
 
-  const handleOpenAdd = () => {
+  // Callbacks
+  const handleOpenAdd = useCallback(() => {
     setIsAddMode(true);
     setFormCode("");
     setFormDescription("");
@@ -131,9 +130,9 @@ export const AdminVouchers: React.FC = () => {
     setFormEndDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
     setFormIsActive(true);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleOpenEdit = (v: Voucher) => {
+  const handleOpenEdit = useCallback((v: Voucher) => {
     setIsAddMode(false);
     setEditingVoucher(v);
     setFormCode(v.code);
@@ -147,14 +146,13 @@ export const AdminVouchers: React.FC = () => {
     setFormEndDate(v.endDate ? v.endDate.split("T")[0] : "");
     setFormIsActive(v.isActive);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (!formCode || formDiscountValue <= 0) {
-      alert("Vui lòng điền mã và giá trị giảm!");
+      toast.warning("Vui lòng điền mã và giá trị giảm hợp lệ!");
       return;
     }
-
     const payload = {
       code: formCode.toUpperCase().replace(/\s+/g, ""),
       description: formDescription || undefined,
@@ -167,7 +165,6 @@ export const AdminVouchers: React.FC = () => {
       endDate: new Date(formEndDate).toISOString(),
       isActive: formIsActive,
     };
-
     if (isAddMode) {
       createVoucherMutation.mutate(payload);
     } else if (editingVoucher) {
@@ -182,25 +179,21 @@ export const AdminVouchers: React.FC = () => {
         },
       });
     }
-  };
+  }, [formCode, formDiscountValue, formDescription, formDiscountType, formMinOrderValue, formMaxDiscount, formUsageLimit, formStartDate, formEndDate, formIsActive, isAddMode, editingVoucher, createVoucherMutation, updateVoucherMutation]);
 
-  const toggleVoucherStatus = (id: string, currentStatus: boolean) => {
-    updateVoucherMutation.mutate({
-      id,
-      data: {
-        isActive: !currentStatus,
-      },
-    });
-  };
+  const toggleVoucherStatus = useCallback((id: string, currentStatus: boolean) => {
+    updateVoucherMutation.mutate({ id, data: { isActive: !currentStatus } });
+  }, [updateVoucherMutation]);
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn mã giảm giá này không?")) {
-      deleteVoucherMutation.mutate(id);
-    }
-  };
+  const handleDelete = useCallback((id: string) => {
+    setVoucherToDelete(id);
+  }, []);
+
+  const navigateToUsers = useCallback(() => navigate("/admin/users"), [navigate]);
 
   return (
     <div className="space-y-6">
+      <label className="sr-only">Quản trị vouchers hệ thống</label>
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-5">
         <div>
@@ -211,7 +204,7 @@ export const AdminVouchers: React.FC = () => {
           <Button 
             variant="outline"
             className="flex items-center gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold shadow-sm h-9 cursor-pointer"
-            onClick={() => alert("Gửi thông báo broadcast hệ thống...")}
+            onClick={() => toast.info("Gửi thông báo broadcast hệ thống...")}
           >
             <Send className="h-3.5 w-3.5" />
             Gửi thông báo
@@ -230,7 +223,7 @@ export const AdminVouchers: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-850/20">
           <button 
-            onClick={() => navigate("/admin/users")}
+            onClick={navigateToUsers}
             className="flex-1 py-4 px-6 font-bold text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-350 transition-all cursor-pointer"
           >
             Người dùng
@@ -242,38 +235,18 @@ export const AdminVouchers: React.FC = () => {
 
         {/* Inner Content Padding */}
         <div className="p-5 space-y-5">
-          {/* Control Bar */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-3 max-w-xl flex-1">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute inset-y-0 left-3 h-4 w-4 my-auto text-slate-400" />
-                <Input
-                  placeholder="Tìm kiếm voucher bằng Code..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 bg-card border-slate-200 dark:border-slate-800 text-xs focus:ring-1 focus:ring-primary h-9 rounded-lg"
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs h-9 rounded-lg px-3 focus:ring-1 focus:ring-primary focus:border-primary text-slate-600 dark:text-slate-350 cursor-pointer font-medium outline-none"
-              >
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="ACTIVE">Đang hoạt động</option>
-                <option value="INACTIVE">Tạm dừng hoạt động</option>
-              </select>
-            </div>
-            <Button 
-              onClick={handleOpenAdd} 
-              className="bg-[#00288e] hover:bg-[#00288e]/95 text-white font-bold shadow-md shadow-[#00288e]/10 gap-2 h-9 text-xs cursor-pointer rounded-lg px-4"
-            >
-              <PlusCircle className="h-3.5 w-3.5" />
-              Tạo Voucher mới
-            </Button>
-          </div>
+          <VouchersFilters
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            onOpenAdd={handleOpenAdd}
+          />
 
-          {/* Loading state */}
           {isLoadingVouchers ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -284,7 +257,6 @@ export const AdminVouchers: React.FC = () => {
               Lỗi đồng bộ dữ liệu: {(vouchersError as any).message || "Không thể kết nối đến máy chủ API"}
             </div>
           ) : (
-            /* Table of Vouchers matching users_promotions.html */
             <VouchersTable
               vouchers={vouchers}
               onEdit={handleOpenEdit}
@@ -300,82 +272,11 @@ export const AdminVouchers: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Bento Layout Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Stat Card 1 */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg text-primary dark:text-primary-fixed-dim">
-              <UserCheck className="h-5 w-5" />
-            </div>
-            <span className="text-emerald-500 font-bold text-xs flex items-center gap-0.5">
-              <TrendingUp className="h-3.5 w-3.5" /> 12%
-            </span>
-          </div>
-          <div>
-            <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider">Người dùng mới (Tháng này)</p>
-            <h3 className="font-extrabold text-2xl text-slate-800 dark:text-white mt-1">1,284</h3>
-          </div>
-        </div>
+      <VouchersStatsGrid
+        activeVouchersCount={activeVouchersCount}
+        onOpenAdd={handleOpenAdd}
+      />
 
-        {/* Stat Card 2 */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 rounded-lg text-amber-500">
-              <Ticket className="h-5 w-5" />
-            </div>
-            <span className="text-amber-500 font-bold text-xs flex items-center gap-0.5">
-              <Minus className="h-3.5 w-3.5" /> 0%
-            </span>
-          </div>
-          <div>
-            <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider">Voucher đang hoạt động</p>
-            <h3 className="font-extrabold text-2xl text-slate-800 dark:text-white mt-1">{vouchers.filter(v => v.isActive).length}</h3>
-          </div>
-        </div>
-
-        {/* Stat Card 3 */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-500">
-              <DollarSign className="h-5 w-5" />
-            </div>
-            <span className="text-red-500 font-bold text-xs flex items-center gap-0.5">
-              <TrendingDown className="h-3.5 w-3.5" /> 5%
-            </span>
-          </div>
-          <div>
-            <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider">Tổng chiết khấu (VNĐ)</p>
-            <h3 className="font-extrabold text-2xl text-slate-800 dark:text-white mt-1">18.5M</h3>
-          </div>
-        </div>
-      </div>
-
-      {/* Marketing Campaign Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-850 p-8 flex flex-col sm:flex-row items-center justify-between gap-6 group shadow-lg shadow-indigo-500/10">
-        <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
-        <div className="relative z-10 space-y-2.5 text-center sm:text-left">
-          <span className="bg-emerald-550 text-white px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-widest inline-block">
-            Chiến dịch mùa hè
-          </span>
-          <h2 className="text-white font-extrabold text-lg tracking-tight">
-            Tăng tốc doanh số với Voucher Combo mới
-          </h2>
-          <p className="text-indigo-200 max-w-xl text-xs leading-relaxed">
-            Thiết lập các chương trình giảm giá chéo giữa các thể loại sách để khuyến khích người dùng mua nhiều hơn trong mùa hè này.
-          </p>
-        </div>
-        <div className="relative z-10 shrink-0">
-          <button 
-            onClick={handleOpenAdd}
-            className="bg-white hover:bg-slate-50 text-indigo-700 font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xl transition-all hover:scale-[1.03] active:scale-95 cursor-pointer"
-          >
-            Bắt đầu ngay
-          </button>
-        </div>
-      </div>
-
-      {/* Dialog for Add/Edit Voucher */}
       <VoucherDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -402,6 +303,32 @@ export const AdminVouchers: React.FC = () => {
         setFormIsActive={setFormIsActive}
         onSave={handleSave}
       />
+
+      {/* Beautiful Shadcn UI AlertDialog confirmation */}
+      <AlertDialog open={!!voucherToDelete} onOpenChange={(open) => !open && setVoucherToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa vĩnh viễn voucher?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa vĩnh viễn mã giảm giá này không? Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (voucherToDelete) {
+                  deleteVoucherMutation.mutate(voucherToDelete);
+                  setVoucherToDelete(null);
+                }
+              }}
+            >
+              Xóa vĩnh viễn
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

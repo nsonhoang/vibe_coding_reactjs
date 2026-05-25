@@ -1,18 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Gift, Loader2, ArrowLeft, Plus } from "lucide-react";
+import { Loader2, ArrowLeft, Plus } from "lucide-react";
+import { toast } from "sonner";
 
-// Import modular decoupled subcomponents
 import { PromotionsForm } from "@/components/staff-promotions/promotions-form";
 import { PromotionsListTable } from "@/components/staff-promotions/promotions-list-table";
-import { PromotionsBookList } from "@/components/staff-promotions/promotions-book-list";
-import { PromotionsBookDetail } from "@/components/staff-promotions/promotions-book-detail";
-import { PromotionsMetaCard } from "@/components/staff-promotions/promotions-meta-card";
+import { PromotionsDetailView } from "@/components/staff-promotions/promotions-detail-view";
+import { toLocalDateTimeString, formatDate, getPromoStatus } from "@/components/staff-promotions/promo-utils";
 
 import { promotionService, type Promotion } from "@/services/promotion-service";
 import { bookService } from "@/services/book-service";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const StaffPromotions: React.FC = () => {
   const queryClient = useQueryClient();
@@ -21,44 +29,30 @@ export const StaffPromotions: React.FC = () => {
   const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editingPromo, setEditingPromo] = useState<Promotion | null>(null);
-
-  // Split-view state for book selection inside a promotion
   const [selectedBookIdForDetail, setSelectedBookIdForDetail] = useState<string>("");
-
-  // Pagination page state
   const [page, setPage] = useState(1);
   const limit = 10;
-
-  // Helper to format Date to YYYY-MM-DDTHH:MM local string for datetime-local
-  const toLocalDateTimeString = (dateInput: Date | string) => {
-    const d = new Date(dateInput);
-    if (isNaN(d.getTime())) return "";
-    const tzOffset = d.getTimezoneOffset() * 60000;
-    const localISO = new Date(d.getTime() - tzOffset).toISOString();
-    return localISO.substring(0, 16);
-  };
 
   // Form states for creation/editing
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
   const [promoName, setPromoName] = useState("");
   const [rate, setRate] = useState(10);
   const [startDate, setStartDate] = useState(toLocalDateTimeString(new Date()));
-  const [endDate, setEndDate] = useState(
-    toLocalDateTimeString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
-  );
+  const [endDate, setEndDate] = useState(toLocalDateTimeString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)));
 
-  // Filters state (Outside List)
+  // Filters state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
 
+  // Deletion confirmation state
+  const [promoToDelete, setPromoToDelete] = useState<string | null>(null);
+
   // Sync debounced search keyword
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-    }, 400);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
@@ -67,14 +61,14 @@ export const StaffPromotions: React.FC = () => {
     setPage(1);
   }, [debouncedSearch, statusFilter, startDateFilter, endDateFilter]);
 
-  // 1. Fetch all books for form dropdown selection (maximum backend limit is 100)
+  // 1. Fetch all books for selection
   const { data: booksData, isLoading: isLoadingBooks } = useQuery({
     queryKey: ["books-all-select"],
     queryFn: () => bookService.getBooks({ limit: 100 }),
   });
-  const booksList = booksData?.data?.data || booksData?.data?.items || [];
+  const booksList = useMemo(() => booksData?.data?.data || booksData?.data?.items || [], [booksData]);
 
-  // 2. Fetch promotions with active backend-driven pagination and filters
+  // 2. Fetch promotions
   const { data: promotionsData, isLoading: isLoadingPromos, error } = useQuery({
     queryKey: ["promotions", page, debouncedSearch, statusFilter, startDateFilter, endDateFilter],
     queryFn: () =>
@@ -89,38 +83,39 @@ export const StaffPromotions: React.FC = () => {
   });
 
   const paginatedResult = promotionsData?.data;
-  const rawPromotions = paginatedResult?.data || paginatedResult?.items || [];
+  const rawPromotions = useMemo(() => paginatedResult?.data || paginatedResult?.items || [], [paginatedResult]);
   
-  // Resolve books list for each promotion by filtering from the booksList in memory
-  const promotions = rawPromotions.map((promo: any) => ({
-    ...promo,
-    books: promo.books && promo.books.length > 0
-      ? promo.books
-      : (booksList.filter((b: any) => promo.bookIds?.includes(b.id)).map((b: any) => ({
-          id: b.id,
-          title: b.title,
-          price: b.price
-        })) || []),
-  }));
+  const promotions = useMemo(() => {
+    return rawPromotions.map((promo: any) => ({
+      ...promo,
+      books: promo.books && promo.books.length > 0
+        ? promo.books
+        : (booksList.filter((b: any) => promo.bookIds?.includes(b.id)).map((b: any) => ({
+            id: b.id,
+            title: b.title,
+            price: b.price
+          })) || []),
+    }));
+  }, [rawPromotions, booksList]);
 
   const totalItems = paginatedResult?.meta?.totalItems || 0;
   const totalPages = paginatedResult?.meta?.totalPages || 1;
 
-  // Derive the active selected promotion (with resolved books) so that it stays up to date
-  const activeSelectedPromo = selectedPromo
-    ? promotions.find((p) => p.id === selectedPromo.id) || {
-        ...selectedPromo,
-        books: selectedPromo.books && selectedPromo.books.length > 0
-          ? selectedPromo.books
-          : (booksList.filter((b: any) => selectedPromo.bookIds?.includes(b.id)).map((b: any) => ({
-              id: b.id,
-              title: b.title,
-              price: b.price
-            })) || []),
-      }
-    : null;
+  const activeSelectedPromo = useMemo(() => {
+    if (!selectedPromo) return null;
+    return promotions.find((p) => p.id === selectedPromo.id) || {
+      ...selectedPromo,
+      books: selectedPromo.books && selectedPromo.books.length > 0
+        ? selectedPromo.books
+        : (booksList.filter((b: any) => selectedPromo.bookIds?.includes(b.id)).map((b: any) => ({
+            id: b.id,
+            title: b.title,
+            price: b.price
+          })) || []),
+    };
+  }, [selectedPromo, promotions, booksList]);
 
-  // 3. Query specific Book Details for the split-pane detailed section
+  // 3. Query specific Book Details
   const { data: bookDetailData, isLoading: isLoadingBookDetail } = useQuery({
     queryKey: ["book-detail-promo", selectedBookIdForDetail],
     queryFn: () => bookService.getBookById(selectedBookIdForDetail),
@@ -128,181 +123,124 @@ export const StaffPromotions: React.FC = () => {
   });
   const bookDetail = bookDetailData?.data;
 
-  // Automatically select the first book in details view when promotion changes
+  // Auto-select first book in details view
   useEffect(() => {
-    if (activeSelectedPromo && activeSelectedPromo.books && activeSelectedPromo.books.length > 0) {
+    if (activeSelectedPromo?.books && activeSelectedPromo.books.length > 0) {
       setSelectedBookIdForDetail(activeSelectedPromo.books[0].id);
     } else {
       setSelectedBookIdForDetail("");
     }
   }, [activeSelectedPromo]);
 
-  // 4. Create Promotion Mutation
+  // Mutations
   const createPromoMutation = useMutation({
-    mutationFn: (data: {
-      name: string;
-      discountRate: number;
-      startDate: string;
-      endDate: string;
-      bookIds: string[];
-    }) => {
-      return promotionService.createPromotion(data);
-    },
+    mutationFn: (data: any) => promotionService.createPromotion(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["promotions"] });
       resetFormState();
       setIsAddingNew(false);
-      alert("Đã thêm chương trình chiết khấu thành công!");
+      toast.success("Đã thêm chương trình chiết khấu thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi tạo ưu đãi: ${err.response?.data?.message || err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi tạo ưu đãi: ${err.response?.data?.message || err.message}`),
   });
 
-  // 5. Update Promotion Mutation
   const updatePromoMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { name?: string; discountRate?: number; startDate?: string; endDate?: string; bookIds?: string[] } }) => {
-      return promotionService.updatePromotion(id, data);
-    },
+    mutationFn: ({ id, data }: any) => promotionService.updatePromotion(id, data),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["promotions"] });
       resetFormState();
-      // If we were editing, return back to detail view with updated values
-      if (res.data) {
-        setSelectedPromo(res.data);
-      }
+      if (res.data) setSelectedPromo(res.data);
       setEditingPromo(null);
-      alert("Đã cập nhật chương trình chiết khấu thành công!");
+      toast.success("Đã cập nhật chương trình chiết khấu thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi cập nhật ưu đãi: ${err.response?.data?.message || err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi cập nhật ưu đãi: ${err.response?.data?.message || err.message}`),
   });
 
-  // 6. Delete Promotion Mutation
   const deletePromoMutation = useMutation({
     mutationFn: (id: string) => promotionService.deletePromotion(id),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ["promotions"] });
-      if (selectedPromo?.id === id) {
-        setSelectedPromo(null);
-      }
+      if (selectedPromo?.id === id) setSelectedPromo(null);
       if (editingPromo?.id === id) {
         setEditingPromo(null);
         resetFormState();
       }
-      alert("Đã gỡ bỏ chương trình chiết khấu thành công!");
+      toast.success("Đã gỡ bỏ chương trình chiết khấu thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi gỡ bỏ ưu đãi: ${err.response?.data?.message || err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi gỡ bỏ ưu đãi: ${err.response?.data?.message || err.message}`),
   });
 
-  const resetFormState = () => {
+  const resetFormState = useCallback(() => {
     setPromoName("");
     setRate(10);
     setSelectedBookIds([]);
     setStartDate(toLocalDateTimeString(new Date()));
-    setEndDate(
-      toLocalDateTimeString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
-    );
-  };
+    setEndDate(toLocalDateTimeString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)));
+  }, []);
 
-  const applyPromoSubmit = (e: React.FormEvent) => {
+  const applyPromoSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!promoName.trim() || selectedBookIds.length === 0 || rate <= 0 || rate > 90) {
-      alert("Vui lòng điền tên chương trình, chọn ít nhất 1 đầu sách và đặt chiết khấu phù hợp.");
+      toast.warning("Vui lòng điền tên chương trình, chọn ít nhất 1 đầu sách và đặt chiết khấu phù hợp.");
       return;
     }
-
     const startISO = new Date(startDate).toISOString();
     const endISO = new Date(endDate).toISOString();
-
     if (new Date(startDate) > new Date(endDate)) {
-      alert("Ngày bắt đầu không được lớn hơn ngày kết thúc.");
+      toast.warning("Ngày bắt đầu không được lớn hơn ngày kết thúc.");
       return;
     }
-
     if (editingPromo) {
       updatePromoMutation.mutate({
         id: editingPromo.id,
-        data: {
-          name: promoName.trim(),
-          discountRate: rate,
-          startDate: startISO,
-          endDate: endISO,
-          bookIds: selectedBookIds,
-        },
+        data: { name: promoName.trim(), discountRate: rate, startDate: startISO, endDate: endISO, bookIds: selectedBookIds },
       });
     } else {
-      createPromoMutation.mutate({
-        name: promoName.trim(),
-        discountRate: rate,
-        startDate: startISO,
-        endDate: endISO,
-        bookIds: selectedBookIds,
-      });
+      createPromoMutation.mutate({ name: promoName.trim(), discountRate: rate, startDate: startISO, endDate: endISO, bookIds: selectedBookIds });
     }
-  };
+  }, [promoName, selectedBookIds, rate, startDate, endDate, editingPromo, createPromoMutation, updatePromoMutation]);
 
-  const handleStartEdit = (promo: Promotion) => {
+  const handleStartEdit = useCallback((promo: Promotion) => {
     setEditingPromo(promo);
     setPromoName(promo.name);
     setRate(promo.discountRate);
     setStartDate(toLocalDateTimeString(promo.startDate));
     setEndDate(toLocalDateTimeString(promo.endDate));
     setSelectedBookIds(promo.bookIds || promo.books?.map((b) => b.id) || []);
-  };
+  }, []);
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setEditingPromo(null);
     setIsAddingNew(false);
     resetFormState();
-  };
+  }, [resetFormState]);
 
-  const removePromo = (id: string) => {
-    if (window.confirm("Bạn có chắc chắn muốn gỡ bỏ chương trình chiết khấu này không?")) {
-      deletePromoMutation.mutate(id);
-    }
-  };
+  const removePromo = useCallback((id: string) => {
+    setPromoToDelete(id);
+  }, []);
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     setSearchTerm("");
     setStatusFilter("ALL");
     setStartDateFilter("");
     setEndDateFilter("");
-  };
+  }, []);
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
-  };
+  const handleBackToList = useCallback(() => {
+    setSelectedPromo(null);
+    setSelectedBookIdForDetail("");
+  }, []);
 
-  const getPromoStatus = (promo: Promotion) => {
-    const now = new Date();
-    const start = new Date(promo.startDate);
-    const end = new Date(promo.endDate);
-
-    if (!promo.isActive) return { text: "Tạm dừng", class: "bg-slate-500/10 text-slate-600 dark:text-slate-400" };
-    if (now < start) return { text: "Sắp diễn ra", class: "bg-amber-500/10 text-amber-600 dark:text-amber-400" };
-    if (now > end) return { text: "Đã kết thúc", class: "bg-rose-500/10 text-rose-600 dark:text-rose-400" };
-    return { text: "Đang hoạt động", class: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" };
-  };
+  const handleAddNew = useCallback(() => {
+    resetFormState();
+    setIsAddingNew(true);
+  }, [resetFormState]);
 
   if (isLoadingBooks || isLoadingPromos) {
     return (
       <div className="flex flex-col justify-center items-center py-20 space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-xs text-muted-foreground font-semibold">
-          Đang tải dữ liệu chương trình khuyến mãi...
-        </p>
+        <p className="text-xs text-muted-foreground font-semibold">Đang tải dữ liệu chương trình khuyến mãi...</p>
       </div>
     );
   }
@@ -315,150 +253,123 @@ export const StaffPromotions: React.FC = () => {
     );
   }
 
-  // RENDER VIEW 3: Form Add / Edit
-  if (isAddingNew || editingPromo) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={handleCancelEdit}
-            className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg shadow-sm cursor-pointer"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Quay lại danh sách
-          </button>
-          <h2 className="text-base font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-            {editingPromo ? `Sửa ưu đãi: ${editingPromo.name}` : "Tạo chương trình ưu đãi mới"}
-          </h2>
-        </div>
-
-        <div className="max-w-2xl mx-auto">
-          <PromotionsForm
-            books={booksList}
-            selectedBookIds={selectedBookIds}
-            setSelectedBookIds={setSelectedBookIds}
-            rate={rate}
-            setRate={setRate}
-            promoName={promoName}
-            setPromoName={setPromoName}
-            startDate={startDate}
-            setStartDate={setStartDate}
-            endDate={endDate}
-            setEndDate={setEndDate}
-            onApplyPromo={applyPromoSubmit}
-            isSubmitting={createPromoMutation.isPending || updatePromoMutation.isPending}
-            isEditMode={!!editingPromo}
-            onCancelEdit={handleCancelEdit}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // RENDER VIEW 2: Detail Split View
-  if (activeSelectedPromo) {
-    return (
-      <div className="space-y-6">
-        {/* Detail Header navigation */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <button
-            onClick={() => {
-              setSelectedPromo(null);
-              setSelectedBookIdForDetail("");
-            }}
-            className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-lg shadow-sm cursor-pointer"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Quay lại danh sách ưu đãi
-          </button>
-          <div>
-            <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
-              <Gift className="h-4.5 w-4.5 text-primary" />
-              Chi tiết: {activeSelectedPromo.name}
+  return (
+    <div className="space-y-6">
+      <label className="sr-only">Quản lý chương trình khuyến mãi</label>
+      {isAddingNew || editingPromo ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleCancelEdit}
+              className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg shadow-sm cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Quay lại danh sách
+            </button>
+            <h2 className="text-base font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              {editingPromo ? `Sửa ưu đãi: ${editingPromo.name}` : "Tạo chương trình ưu đãi mới"}
             </h2>
           </div>
-        </div>
-
-        {/* Split Bento Grid Layout */}
-        <div className="grid grid-cols-12 gap-6">
-          {/* Left panel: Books under this promotion (Col span: 8) */}
-          <PromotionsBookList
-            books={activeSelectedPromo.books || []}
-            discountRate={activeSelectedPromo.discountRate}
-            selectedBookId={selectedBookIdForDetail}
-            onSelectBookId={(id) => setSelectedBookIdForDetail(id)}
-          >
-            {/* Slot the detailed viewer inside */}
-            {selectedBookIdForDetail && (
-              <PromotionsBookDetail
-                isLoading={isLoadingBookDetail}
-                book={bookDetail}
-              />
-            )}
-          </PromotionsBookList>
-
-          {/* Right panel: Meta card overview (Col span: 4) */}
-          <div className="col-span-12 lg:col-span-4">
-            <PromotionsMetaCard
-              promotion={activeSelectedPromo}
-              onEditPromo={(p) => handleStartEdit(p)}
-              onRemovePromo={(id) => removePromo(id)}
-              formatDate={formatDate}
-              getPromoStatus={getPromoStatus}
+          <div className="max-w-2xl mx-auto">
+            <PromotionsForm
+              books={booksList}
+              selectedBookIds={selectedBookIds}
+              setSelectedBookIds={setSelectedBookIds}
+              rate={rate}
+              setRate={setRate}
+              promoName={promoName}
+              setPromoName={setPromoName}
+              startDate={startDate}
+              setStartDate={setStartDate}
+              endDate={endDate}
+              setEndDate={setEndDate}
+              onApplyPromo={applyPromoSubmit}
+              isSubmitting={createPromoMutation.isPending || updatePromoMutation.isPending}
+              isEditMode={!!editingPromo}
+              onCancelEdit={handleCancelEdit}
             />
           </div>
         </div>
-      </div>
-    );
-  }
+      ) : activeSelectedPromo ? (
+        <PromotionsDetailView
+          activeSelectedPromo={activeSelectedPromo}
+          onBackToList={handleBackToList}
+          selectedBookIdForDetail={selectedBookIdForDetail}
+          setSelectedBookIdForDetail={setSelectedBookIdForDetail}
+          isLoadingBookDetail={isLoadingBookDetail}
+          bookDetail={bookDetail}
+          onStartEdit={handleStartEdit}
+          onRemovePromo={removePromo}
+          formatDate={formatDate}
+          getPromoStatus={getPromoStatus}
+        />
+      ) : (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-black text-slate-855 dark:text-slate-100 uppercase tracking-wider">Ưu đãi giảm giá đầu sách</h2>
+              <p className="text-xs text-slate-450 dark:text-slate-400 font-semibold mt-1">
+                Theo dõi các đợt chiết khấu trực tiếp trên sản phẩm sách đang áp dụng trong hệ thống Bookstore
+              </p>
+            </div>
+            <Button
+              onClick={handleAddNew}
+              className="bg-primary hover:bg-primary/95 text-white font-bold gap-1.5 h-10 px-5 text-xs rounded-lg shadow-md shadow-primary/10 cursor-pointer flex items-center"
+            >
+              <Plus className="h-4 w-4" />
+              Thêm chương trình khuyến mãi
+            </Button>
+          </div>
 
-  // RENDER VIEW 1: Main Promotion List with filters (Default Page view)
-  return (
-    <div className="space-y-6">
-      {/* Page header and Add Button */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-black text-slate-850 dark:text-slate-100 uppercase tracking-wider">
-            Ưu đãi giảm giá đầu sách
-          </h2>
-          <p className="text-xs text-slate-450 dark:text-slate-400 font-semibold mt-1">
-            Theo dõi các đợt chiết khấu trực tiếp trên sản phẩm sách đang áp dụng trong hệ thống Bookstore
-          </p>
+          <PromotionsListTable
+            promotions={promotions}
+            onSelectPromo={setSelectedPromo}
+            onRemovePromo={removePromo}
+            isSubmitting={deletePromoMutation.isPending}
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            onPageChange={setPage}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            startDateFilter={startDateFilter}
+            setStartDateFilter={setStartDateFilter}
+            endDateFilter={endDateFilter}
+            setEndDateFilter={setEndDateFilter}
+            onClearFilters={handleClearFilters}
+            formatDate={formatDate}
+            getPromoStatus={getPromoStatus}
+          />
         </div>
-        <Button
-          onClick={() => {
-            resetFormState();
-            setIsAddingNew(true);
-          }}
-          className="bg-primary hover:bg-primary/95 text-white font-bold gap-1.5 h-10 px-5 text-xs rounded-lg shadow-md shadow-primary/10 cursor-pointer flex items-center"
-        >
-          <Plus className="h-4 w-4" />
-          Thêm chương trình khuyến mãi
-        </Button>
-      </div>
+      )}
 
-      {/* Reusable Main Table list */}
-      <PromotionsListTable
-        promotions={promotions}
-        onSelectPromo={(promo) => setSelectedPromo(promo)}
-        onRemovePromo={(id) => removePromo(id)}
-        isSubmitting={deletePromoMutation.isPending}
-        currentPage={page}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        onPageChange={(p) => setPage(p)}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        startDateFilter={startDateFilter}
-        setStartDateFilter={setStartDateFilter}
-        endDateFilter={endDateFilter}
-        setEndDateFilter={setEndDateFilter}
-        onClearFilters={handleClearFilters}
-        formatDate={formatDate}
-        getPromoStatus={getPromoStatus}
-      />
+      {/* Modern Shadcn UI AlertDialog confirmation */}
+      <AlertDialog open={!!promoToDelete} onOpenChange={(open) => !open && setPromoToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận gỡ bỏ chương trình?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn gỡ bỏ chương trình chiết khấu này không? Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (promoToDelete) {
+                  deletePromoMutation.mutate(promoToDelete);
+                  setPromoToDelete(null);
+                }
+              }}
+            >
+              Gỡ bỏ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -1,17 +1,10 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Search,
-  Calendar,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  ChevronRight as ArrowIcon,
-  Trash2,
-} from "lucide-react";
+import { ChevronRight as ArrowIcon, Trash2 } from "lucide-react";
 import type { Promotion } from "@/services/promotion-service";
+import { PromotionsFilters } from "./promotions-filters";
+import { PromotionsPagination } from "./promotions-pagination";
 
 interface PromotionsListTableProps {
   promotions: Promotion[];
@@ -39,7 +32,7 @@ interface PromotionsListTableProps {
   getPromoStatus: (promo: Promotion) => { text: string; class: string };
 }
 
-export const PromotionsListTable: React.FC<PromotionsListTableProps> = ({
+export const PromotionsListTable: React.FC<PromotionsListTableProps> = React.memo(({
   promotions,
   onSelectPromo,
   onRemovePromo,
@@ -62,87 +55,20 @@ export const PromotionsListTable: React.FC<PromotionsListTableProps> = ({
 }) => {
   return (
     <div className="space-y-6">
-      {/* Filter panel */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-          {/* Keyword Search */}
-          <div className="space-y-1.5">
-            <label className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
-              Tên chương trình
-            </label>
-            <div className="relative">
-              <Search className="absolute inset-y-0 left-2.5 h-3.5 w-3.5 my-auto text-slate-400" />
-              <Input
-                placeholder="E.g. Sale Hè Rực Rỡ..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 bg-slate-50 dark:bg-slate-855 border-slate-200 dark:border-slate-800 text-[11px] h-9 rounded-lg w-full outline-none"
-              />
-            </div>
-          </div>
-
-          {/* Status Dropdown */}
-          <div className="space-y-1.5">
-            <label className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
-              Trạng thái chạy
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-855 border border-slate-200 dark:border-slate-800 text-[11px] h-9 rounded-lg px-2.5 outline-none text-slate-700 dark:text-slate-300 font-semibold cursor-pointer"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="INACTIVE">Ngưng hoạt động</option>
-            </select>
-          </div>
-
-          {/* Start Date */}
-          <div className="space-y-1.5">
-            <label className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
-              Từ ngày
-            </label>
-            <div className="relative">
-              <Calendar className="absolute inset-y-0 left-2.5 h-3.5 w-3.5 my-auto text-slate-400 pointer-events-none" />
-              <Input
-                type="date"
-                value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-                className="pl-8 bg-slate-50 dark:bg-slate-855 border-slate-200 dark:border-slate-800 text-[11px] h-9 rounded-lg w-full outline-none"
-              />
-            </div>
-          </div>
-
-          {/* End Date & Clear */}
-          <div className="space-y-1.5">
-            <label className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
-              Đến ngày
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Calendar className="absolute inset-y-0 left-2.5 h-3.5 w-3.5 my-auto text-slate-400 pointer-events-none" />
-                <Input
-                  type="date"
-                  value={endDateFilter}
-                  onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="pl-8 bg-slate-50 dark:bg-slate-855 border-slate-200 dark:border-slate-800 text-[11px] h-9 rounded-lg w-full outline-none"
-                />
-              </div>
-              {(searchTerm || statusFilter !== "ALL" || startDateFilter || endDateFilter) && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onClearFilters}
-                  title="Xóa bộ lọc"
-                  className="h-9 w-9 p-0 rounded-lg shrink-0 border-slate-250 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
-                >
-                  <RefreshCw className="h-3.5 w-3.5 text-slate-550" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <label className="sr-only">Danh sách chương trình khuyến mãi</label>
+      
+      {/* Refactored Filters Subcomponent */}
+      <PromotionsFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        startDateFilter={startDateFilter}
+        setStartDateFilter={setStartDateFilter}
+        endDateFilter={endDateFilter}
+        setEndDateFilter={setEndDateFilter}
+        onClearFilters={onClearFilters}
+      />
 
       {/* Main Grid Table List of Promotions */}
       <Card className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
@@ -197,7 +123,10 @@ export const PromotionsListTable: React.FC<PromotionsListTableProps> = ({
                             variant="ghost"
                             size="icon-xs"
                             type="button"
-                            onClick={() => onSelectPromo(promo)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectPromo(promo);
+                            }}
                             className="text-primary hover:bg-primary/10 cursor-pointer h-7 w-7 rounded-lg"
                             title="Xem chi tiết"
                           >
@@ -207,7 +136,11 @@ export const PromotionsListTable: React.FC<PromotionsListTableProps> = ({
                             variant="ghost"
                             size="icon-xs"
                             type="button"
-                            onClick={() => onRemovePromo(promo.id)}
+                            onClick={(e) => {
+                              console.log("promo.id", promo.id);
+                              e.stopPropagation();
+                              onRemovePromo(promo.id);
+                            }}
                             disabled={isSubmitting}
                             className="text-red-500 hover:text-red-650 hover:bg-red-500/10 cursor-pointer h-7 w-7 rounded-lg"
                             title="Xóa ưu đãi"
@@ -230,50 +163,17 @@ export const PromotionsListTable: React.FC<PromotionsListTableProps> = ({
             </table>
           </div>
 
-          {/* Paginated Footer */}
-          {totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-              <div className="text-xs text-slate-550 dark:text-slate-400 font-semibold">
-                Đang hiển thị <span className="font-extrabold text-slate-700 dark:text-slate-350">{Math.min((currentPage - 1) * 10 + 1, totalItems)}</span>
-                {" - "}
-                <span className="font-extrabold text-slate-700 dark:text-slate-350">{Math.min(currentPage * 10, totalItems)}</span> trong tổng số{" "}
-                <span className="font-extrabold text-primary">{totalItems}</span> ưu đãi
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => onPageChange(currentPage - 1)}
-                  disabled={currentPage <= 1}
-                  className="p-1.5 border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                >
-                  <ChevronLeft className="h-4 w-4 text-slate-650 dark:text-slate-400" />
-                </button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
-                  <button
-                    key={pg}
-                    onClick={() => onPageChange(pg)}
-                    className={`w-7.5 h-7.5 rounded text-xs font-extrabold transition-all cursor-pointer ${
-                      currentPage === pg
-                        ? "bg-primary text-white shadow-sm shadow-primary/20"
-                        : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-605 dark:text-slate-400"
-                    }`}
-                  >
-                    {pg}
-                  </button>
-                ))}
-
-                <button
-                  onClick={() => onPageChange(currentPage + 1)}
-                  disabled={currentPage >= totalPages}
-                  className="p-1.5 border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                >
-                  <ChevronRight className="h-4 w-4 text-slate-650 dark:text-slate-400" />
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Refactored Pagination Subcomponent using Shadcn UI */}
+          <PromotionsPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            onPageChange={onPageChange}
+          />
         </CardContent>
       </Card>
     </div>
   );
-};
+});
+
+PromotionsListTable.displayName = "PromotionsListTable";

@@ -1,73 +1,75 @@
-# React + TypeScript + Vite
+# 💻 Admin & Staff Management Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A high-performance management dashboard for the E-Commerce Book Store platform. Built with **React 19**, **Vite**, **TypeScript**, **Tailwind CSS v4**, and modern **Shadcn UI** primitives.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🛠️ Technology Stack & Libraries
 
-## React Compiler
+* **Core**: React 19, TypeScript, Vite.
+* **Styling**: Tailwind CSS V4 for rapid, CSS-native design token structures.
+* **State Management**: Zustand for light-weight client states.
+* **Server State**: `@tanstack/react-query` for reliable api caching, synchronization, and retry behaviors.
+* **Notifications**: `sonner` for rich, non-blocking toast animations.
+* **Visual Data**: `recharts` for charts, tables, and metric breakdowns.
+* **Icons**: `lucide-react` for smooth vector graphics.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🎨 UI Architecture & Migration
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+This dashboard has been fully migrated from traditional browser components to a premium design system:
+1. **Shadcn UI Pagination**: Integrated in Promotions, Vouchers, Books, and Users directories to deliver dynamic, high-performance search engine page results.
+2. **Shadcn UI AlertDialog**: Ensures destructive administrative actions (e.g. deleting books, promotions, or accounts) are verified through beautiful, accessible modals.
+3. **Sonner Toast Alerts**: Dispatched instantly on API callback successes or failures, replacing legacy web browser popups.
+4. **Clean Code Protocol (P0)**: Refactored complex source modules, ensuring no single component file exceeds the strict **300 lines of code** rule.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 📂 Core Folder Structure
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+dashboard/
+├── src/
+│   ├── components/            # Reusable UI & Layout Components
+│   │   ├── admin-users/       # Users lists, filters, and paginators
+│   │   ├── admin-vouchers/    # Vouchers management tables & forms
+│   │   ├── staff-books/       # Books inventory grids and details panels
+│   │   ├── staff-categories/  # Categories & authors managers
+│   │   ├── staff-promotions/  # Split bento promotions grid & paginators
+│   │   ├── ui/                # Core Shadcn UI primitives (alert-dialog, pagination, sonner, etc.)
+│   │   └── layout/            # Sidebar navigation and grid shell wrappers
+│   ├── pages/                 # Routing Entrypoints
+│   │   ├── admin/             # Administrator dashboards, roles, and user pages
+│   │   ├── staff/             # Books, promotions, orders, inventory, and shipments pages
+│   │   └── login.tsx          # Secure JWT login gateway
+│   ├── services/              # Axios-driven API client abstraction services
+│   ├── App.tsx                # Routing definitions and global Toaster mount
+│   ├── index.css              # Core design tokens and custom scrollbars
+│   └── main.tsx               # Client bootstrap entrypoint
+├── package.json
+└── vite.config.ts
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🚀 Getting Started Locally
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Setup
+1. Install node packages:
+   ```bash
+   npm install
+   ```
+2. Configure your API base URL (defaults to `http://localhost:3000/api` in services).
+
+### Run in Development Mode
+```bash
+npm run dev
 ```
+*The dev server runs on [http://localhost:5173](http://localhost:5173).*
+
+### Build for Production
+```bash
+npm run build
+```
+The highly optimized static bundle is compiled to `/dist`, ready for deployment to systems like Vercel, Netlify, or AWS S3.

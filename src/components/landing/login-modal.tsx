@@ -1,22 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/auth-store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-client";
 import { 
   BookOpen, 
-  User, 
-  Lock, 
   AlertCircle, 
-  ArrowRight, 
   X, 
   Info, 
   KeyRound,
-  ShieldAlert,
-  ArrowLeft,
   CheckCircle2
 } from "lucide-react";
+
+import { LoginForm } from "@/components/landing/login-form";
+import { ForgotPasswordFlow } from "@/components/landing/forgot-password-flow";
 
 interface LoginModalProps {
   onClose: () => void;
@@ -49,7 +45,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
   const [isForgotLoading, setIsForgotLoading] = useState(false);
 
   // Submit standard login
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfoMessage(null);
@@ -70,10 +66,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
     } catch (err: any) {
       setError(err?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
     }
-  };
+  }, [email, password, login, navigate, onClose]);
 
   // STEP 1: Request OTP
-  const handleRequestReset = async (e: React.FormEvent) => {
+  const handleRequestReset = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfoMessage(null);
@@ -100,10 +96,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
     } finally {
       setIsForgotLoading(false);
     }
-  };
+  }, [forgotEmail]);
 
   // STEP 2: Verify OTP
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyOtp = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfoMessage(null);
@@ -130,10 +126,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
     } finally {
       setIsForgotLoading(false);
     }
-  };
+  }, [forgotOtp, otpToken]);
 
   // STEP 3: Confirm and set new password
-  const handleConfirmNewPassword = async (e: React.FormEvent) => {
+  const handleConfirmNewPassword = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfoMessage(null);
@@ -144,13 +140,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
       setIsForgotLoading(false);
       return;
     }
-
     if (forgotNewPassword !== forgotConfirmNewPassword) {
       setError("Mật khẩu xác nhận không trùng khớp.");
       setIsForgotLoading(false);
       return;
     }
-
     if (forgotNewPassword.length < 6) {
       setError("Mật khẩu mới phải có độ dài tối thiểu 6 ký tự.");
       setIsForgotLoading(false);
@@ -169,12 +163,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
 
       setInfoMessage("Chúc mừng! Đặt lại mật khẩu thành công. Hãy dùng mật khẩu mới để đăng nhập.");
       setView("login");
-      
-      // Auto fill the email for user convenience
       setEmail(forgotEmail);
       setPassword("");
       
-      // Clear flow states
       setForgotEmail("");
       setForgotOtp("");
       setForgotNewPassword("");
@@ -186,10 +177,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
     } finally {
       setIsForgotLoading(false);
     }
-  };
+  }, [forgotNewPassword, forgotConfirmNewPassword, resetPasswordConfirmToken, forgotEmail]);
 
   // Reset back to main login view
-  const handleResetToLogin = () => {
+  const handleResetToLogin = useCallback(() => {
     setError(null);
     setInfoMessage(null);
     setForgotEmail("");
@@ -199,7 +190,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
     setOtpToken(null);
     setResetPasswordConfirmToken(null);
     setView("login");
-  };
+  }, []);
+
+  const setViewSafe = useCallback((v: "forgot-email" | "forgot-otp" | "forgot-new-password" | "login") => {
+    if (v === "login") {
+      handleResetToLogin();
+    } else {
+      setView(v);
+    }
+  }, [handleResetToLogin]);
+
+  const handleForgotPasswordClick = useCallback(() => {
+    setError(null);
+    setInfoMessage(null);
+    setView("forgot-email");
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -216,7 +221,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
           {/* Close Trigger */}
           <button 
             onClick={onClose}
-            className="absolute top-4 right-4 rounded-full border border-slate-100 bg-slate-50 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="absolute top-4 right-4 rounded-full border border-slate-100 bg-slate-50 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -226,7 +231,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
             <div className="flex justify-center mb-3">
               {view === "login" ? (
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-600 text-white shadow-lg shadow-sky-600/20">
-                  <BookOpen className="h-5.5 w-5.5" />
+                  <BookOpen className="h-5 w-5.5" />
                 </div>
               ) : (
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 text-white shadow-lg shadow-amber-500/20 animate-pulse">
@@ -284,190 +289,34 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
           )}
 
           {/* DYNAMIC FORMS */}
-          {view === "login" && (
-            <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in duration-150">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Email đăng nhập</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <User className="h-3.5 w-3.5" />
-                  </span>
-                  <Input
-                    type="email"
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400 focus-visible:border-sky-500/80 focus-visible:ring-sky-500/20 text-xs h-9 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Mật khẩu</label>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setError(null);
-                      setInfoMessage(null);
-                      setView("forgot-email");
-                    }}
-                    className="text-[10px] font-extrabold text-sky-600 hover:text-sky-500 transition-colors focus:outline-none"
-                  >
-                    Quên mật khẩu?
-                  </button>
-                </div>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <Lock className="h-3.5 w-3.5" />
-                  </span>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400 focus-visible:border-sky-500/80 focus-visible:ring-sky-500/20 text-xs h-9 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-sky-600 text-white hover:bg-sky-500 font-bold shadow-md shadow-sky-600/10 gap-2 h-9 text-xs mt-2 rounded-lg cursor-pointer"
-                disabled={isLoading}
-              >
-                {isLoading ? "Đang xác thực..." : "Đăng nhập hệ thống"}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </form>
-          )}
-
-          {view === "forgot-email" && (
-            <form onSubmit={handleRequestReset} className="space-y-4 animate-in fade-in duration-150">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Email khôi phục tài khoản</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <User className="h-3.5 w-3.5" />
-                  </span>
-                  <Input
-                    type="email"
-                    placeholder="email@example.com"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    className="pl-10 border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400 focus-visible:border-sky-500/80 focus-visible:ring-sky-500/20 text-xs h-9 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-sky-600 text-white hover:bg-sky-500 font-bold shadow-md shadow-sky-600/10 gap-2 h-9 text-xs mt-2 rounded-lg cursor-pointer"
-                disabled={isForgotLoading}
-              >
-                {isForgotLoading ? "Đang gửi mã OTP..." : "Gửi mã xác nhận OTP"}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-
-              <button
-                type="button"
-                onClick={handleResetToLogin}
-                className="flex items-center justify-center gap-1.5 w-full text-[11px] font-bold text-slate-500 hover:text-slate-800 mt-2 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Quay lại Đăng nhập
-              </button>
-            </form>
-          )}
-
-          {view === "forgot-otp" && (
-            <form onSubmit={handleVerifyOtp} className="space-y-4 animate-in fade-in duration-150">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Nhập mã OTP</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <ShieldAlert className="h-3.5 w-3.5" />
-                  </span>
-                  <Input
-                    type="text"
-                    placeholder="Mã OTP gồm 6 chữ số"
-                    maxLength={6}
-                    value={forgotOtp}
-                    onChange={(e) => setForgotOtp(e.target.value)}
-                    className="pl-10 border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400 focus-visible:border-sky-500/80 focus-visible:ring-sky-500/20 text-xs font-bold tracking-widest text-center h-9 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-sky-600 text-white hover:bg-sky-500 font-bold shadow-md shadow-sky-600/10 gap-2 h-9 text-xs mt-2 rounded-lg cursor-pointer"
-                disabled={isForgotLoading}
-              >
-                {isForgotLoading ? "Đang xác thực..." : "Xác nhận mã OTP"}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-
-              <button
-                type="button"
-                onClick={() => setView("forgot-email")}
-                className="flex items-center justify-center gap-1.5 w-full text-[11px] font-bold text-slate-500 hover:text-slate-800 mt-2 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Nhập lại Email
-              </button>
-            </form>
-          )}
-
-          {view === "forgot-new-password" && (
-            <form onSubmit={handleConfirmNewPassword} className="space-y-4 animate-in fade-in duration-150">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Mật khẩu mới</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <Lock className="h-3.5 w-3.5" />
-                  </span>
-                  <Input
-                    type="password"
-                    placeholder="Tối thiểu 6 ký tự"
-                    value={forgotNewPassword}
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    className="pl-10 border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400 focus-visible:border-sky-500/80 focus-visible:ring-sky-500/20 text-xs h-9 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Xác nhận mật khẩu</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <Lock className="h-3.5 w-3.5" />
-                  </span>
-                  <Input
-                    type="password"
-                    placeholder="Nhập lại mật khẩu mới"
-                    value={forgotConfirmNewPassword}
-                    onChange={(e) => setForgotConfirmNewPassword(e.target.value)}
-                    className="pl-10 border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400 focus-visible:border-sky-500/80 focus-visible:ring-sky-500/20 text-xs h-9 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-sky-600 text-white hover:bg-sky-500 font-bold shadow-md shadow-sky-600/10 gap-2 h-9 text-xs mt-2 rounded-lg cursor-pointer"
-                disabled={isForgotLoading}
-              >
-                {isForgotLoading ? "Đang cập nhật..." : "Cập nhật mật khẩu mới"}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </form>
+          {view === "login" ? (
+            <LoginForm
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              onSubmit={handleSubmit}
+              onForgotPasswordClick={handleForgotPasswordClick}
+              isLoading={isLoading}
+            />
+          ) : (
+            <ForgotPasswordFlow
+              view={view}
+              setView={setViewSafe}
+              forgotEmail={forgotEmail}
+              setForgotEmail={setForgotEmail}
+              forgotOtp={forgotOtp}
+              setForgotOtp={setForgotOtp}
+              forgotNewPassword={forgotNewPassword}
+              setForgotNewPassword={setForgotNewPassword}
+              forgotConfirmNewPassword={forgotConfirmNewPassword}
+              setForgotConfirmNewPassword={setForgotConfirmNewPassword}
+              onRequestReset={handleRequestReset}
+              onVerifyOtp={handleVerifyOtp}
+              onConfirmNewPassword={handleConfirmNewPassword}
+              onResetToLogin={handleResetToLogin}
+              isForgotLoading={isForgotLoading}
+            />
           )}
 
         </div>

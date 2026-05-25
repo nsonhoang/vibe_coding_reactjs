@@ -19,9 +19,12 @@ import { StaffPromotions } from "./pages/staff/promotions";
 import { StaffInventory } from "./pages/staff/inventory";
 import { StaffShipments } from "./pages/staff/shipments";
 
+import { Toaster } from "@/components/ui/sonner";
+
 const App: React.FC = () => {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" richColors />
       <Routes>
         {/* Public Login Route */}
         <Route path="/login" element={<Login />} />

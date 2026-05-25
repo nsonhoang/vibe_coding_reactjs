@@ -1,44 +1,56 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { 
-  Search, 
-  UserPlus, 
-  Loader2, 
-  Send,
-  UserCheck,
-  Ticket,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Megaphone
-} from "lucide-react";
+import { Send, Loader2, UserPlus } from "lucide-react";
+import { toast } from "sonner";
+
 import { UsersTable } from "@/components/admin-users/users-table";
 import { UserDialog } from "@/components/admin-users/user-dialog";
-import type { UserResponseDto, UserStatus } from "@/services/user-service";
+import { UsersFilters } from "@/components/admin-users/users-filters";
+import { UsersPagination } from "@/components/admin-users/users-pagination";
+import { UsersStatsGrid } from "@/components/admin-users/users-stats-grid";
 
+import type { UserResponseDto, UserStatus } from "@/services/user-service";
 import { roleService, userService } from "@/services/user-service";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const AdminUsers: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  
+  // Search & Filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<"createdAt" | "name" | "email">("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [selectedRole, setSelectedRole] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+
+  // Dialog & Form states
   const [editingUser, setEditingUser] = useState<UserResponseDto | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
-
-  // Form states
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPhone, setFormPhone] = useState("");
   const [formRole, setFormRole] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
 
-  // Debouncing search
+  // AlertDialog State
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+
+  // Debouncing search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
@@ -46,81 +58,105 @@ export const AdminUsers: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // 1. Fetch Users
+  // Reset page to 1 when search or filter options change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, sortBy, sortOrder, selectedRole, selectedStatus]);
+
+  // 1. Fetch Users from Server
   const { data: usersResponse, isLoading: isLoadingUsers, error: usersError } = useQuery({
-    queryKey: ["users", debouncedSearch],
-    queryFn: () => userService.getUsers({ keyword: debouncedSearch, limit: 100 }),
+    queryKey: ["users", page, debouncedSearch, sortBy, sortOrder],
+    queryFn: () => userService.getUsers({ 
+      page, 
+      limit: 10, 
+      keyword: debouncedSearch, 
+      sortBy, 
+      sortOrder 
+    }),
   });
 
-  // 2. Fetch Roles
+  // 2. Fetch User Roles
   const { data: rolesResponse, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["roles"],
     queryFn: () => roleService.getRoles(),
   });
 
-  const roles = rolesResponse?.data || [];
-  const users = usersResponse?.data?.data || [];
+  const roles = useMemo(() => rolesResponse?.data || [], [rolesResponse]);
+  const rawUsers = useMemo(() => usersResponse?.data?.data || [], [usersResponse]);
 
-  // 4. Update User Mutation
+  // 3. Client Side Hybrid Filter for Role & Status
+  const users = useMemo(() => {
+    return rawUsers.filter((user) => {
+      if (selectedRole) {
+        const roleId = typeof user.role === "object" && user.role ? user.role.id : String(user.role || "");
+        if (roleId !== selectedRole) return false;
+      }
+      if (selectedStatus && user.status !== selectedStatus) {
+        return false;
+      }
+      return true;
+    });
+  }, [rawUsers, selectedRole, selectedStatus]);
+
+  const totalItems = usersResponse?.data?.meta?.totalItems || usersResponse?.data?.meta?.total || 0;
+  const totalPages = usersResponse?.data?.meta?.totalPages || 1;
+  const currentPage = usersResponse?.data?.meta?.currentPage || usersResponse?.data?.meta?.page || 1;
+
+  // Mutations
   const updateUserMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { name?: string; phone?: string; roleId?: string; status?: UserStatus } }) => 
       userService.updateUser(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setIsDialogOpen(false);
+      toast.success("Cập nhật thông tin tài khoản thành công!");
     },
     onError: (err: any) => {
-      alert(`Không thể cập nhật tài khoản: ${err.response?.data?.message || err.message}`);
+      toast.error(`Không thể cập nhật tài khoản: ${err.response?.data?.message || err.message}`);
     },
   });
 
-  // 5. Delete User Mutation
   const deleteUserMutation = useMutation({
     mutationFn: (id: string) => userService.deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      alert("Xóa tài khoản người dùng thành công!");
+      toast.success("Xóa tài khoản người dùng thành công!");
     },
     onError: (err: any) => {
-      alert(`Không thể xóa tài khoản: ${err.response?.data?.message || err.message}`);
+      toast.error(`Không thể xóa tài khoản: ${err.response?.data?.message || err.message}`);
     },
   });
 
-  // Mở Dialog Thêm mới
-  const handleOpenAdd = () => {
+  // Handlers optimized with useCallback
+  const handleOpenAdd = useCallback(() => {
     setIsAddMode(true);
     setFormName("");
     setFormEmail("");
     setFormPhone("");
-    // Chọn role đầu tiên làm mặc định nếu có
     setFormRole(roles[0]?.id || "");
     setFormIsActive(true);
     setIsDialogOpen(true);
-  };
+  }, [roles]);
 
-  // Mở Dialog Chỉnh sửa
-  const handleOpenEdit = (user: UserResponseDto) => {
+  const handleOpenEdit = useCallback((user: UserResponseDto) => {
     setIsAddMode(false);
     setEditingUser(user);
     setFormName(user.name || "");
     setFormEmail(user.email);
     setFormPhone(user.phone || "");
-    // Lấy role ID từ object hoặc string
     const roleId = typeof user.role === "object" && user.role ? user.role.id : String(user.role || "");
     setFormRole(roleId);
     setFormIsActive(user.status === "ACTIVE");
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  // Lưu thông tin từ Dialog
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (!formName || !formEmail || !formRole) {
-      alert("Vui lòng nhập đầy đủ thông tin!");
+      toast.warning("Vui lòng nhập đầy đủ thông tin!");
       return;
     }
-
     if (isAddMode) {
-      console.log("Add mode is not supported yet");
+      toast.info("Chức năng tạo tài khoản từ quản trị đang được phát triển.");
     } else if (editingUser) {
       updateUserMutation.mutate({
         id: editingUser.id,
@@ -132,27 +168,28 @@ export const AdminUsers: React.FC = () => {
         },
       });
     }
-  };
+  }, [formName, formEmail, formRole, isAddMode, editingUser, formPhone, formIsActive, updateUserMutation]);
 
-  // Thay đổi trạng thái tài khoản (Block / Active)
-  const toggleUserStatus = (id: string, currentStatus: boolean) => {
+  const toggleUserStatus = useCallback((id: string, currentStatus: boolean) => {
     updateUserMutation.mutate({
       id,
       data: {
         status: !currentStatus ? "ACTIVE" : "INACTIVE",
       },
     });
-  };
+  }, [updateUserMutation]);
 
-  // Xóa tài khoản bằng API thực tế
-  const handleDeleteUser = (id: string) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản người dùng này không? Hành động này không thể hoàn tác.")) {
-      deleteUserMutation.mutate(id);
-    }
-  };
+  const handleDeleteUser = useCallback((id: string) => {
+    setUserToDelete(id);
+  }, []);
+
+  const handleNavigateToVouchers = useCallback(() => {
+    navigate("/admin/vouchers");
+  }, [navigate]);
 
   return (
     <div className="space-y-6">
+      <label className="sr-only">Quản trị danh sách người dùng</label>
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-5">
         <div>
@@ -163,13 +200,13 @@ export const AdminUsers: React.FC = () => {
           <Button 
             variant="outline"
             className="flex items-center gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold shadow-sm h-9 cursor-pointer"
-            onClick={() => alert("Gửi thông báo broadcast hệ thống...")}
+            onClick={() => toast.info("Gửi thông báo broadcast hệ thống...")}
           >
             <Send className="h-3.5 w-3.5" />
             Gửi thông báo
           </Button>
           <Button 
-            onClick={() => navigate("/admin/vouchers")}
+            onClick={handleNavigateToVouchers}
             className="flex items-center gap-2 bg-[#00288e] hover:bg-[#00288e]/95 text-white text-xs font-bold shadow-md shadow-[#00288e]/10 h-9 cursor-pointer rounded-lg"
           >
             <UserPlus className="h-3.5 w-3.5" />
@@ -185,7 +222,7 @@ export const AdminUsers: React.FC = () => {
             Người dùng
           </button>
           <button 
-            onClick={() => navigate("/admin/vouchers")}
+            onClick={handleNavigateToVouchers}
             className="flex-1 py-4 px-6 font-bold text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-350 transition-all cursor-pointer"
           >
             Khuyến mãi / Voucher
@@ -194,28 +231,22 @@ export const AdminUsers: React.FC = () => {
 
         {/* Inner Content Padding */}
         <div className="p-5 space-y-5">
-          {/* Control Bar */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute inset-y-0 left-3 h-4 w-4 my-auto text-slate-400" />
-              <Input
-                placeholder="Tìm kiếm người dùng bằng họ tên hoặc email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-card border-slate-200 dark:border-slate-800 text-xs focus:ring-1 focus:ring-primary h-9 rounded-lg"
-              />
-            </div>
-            <Button 
-              onClick={handleOpenAdd} 
-              disabled={isLoadingRoles}
-              className="bg-[#00288e] hover:bg-[#00288e]/95 text-white font-bold shadow-md shadow-[#00288e]/10 gap-2 h-9 text-xs cursor-pointer rounded-lg px-4"
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              Tạo tài khoản mới
-            </Button>
-          </div>
+          <UsersFilters
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            selectedRole={selectedRole}
+            setSelectedRole={setSelectedRole}
+            selectedStatus={selectedStatus}
+            setSelectedStatus={setSelectedStatus}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            roles={roles}
+            onOpenAdd={handleOpenAdd}
+            isLoadingRoles={isLoadingRoles}
+          />
 
-          {/* Loading state */}
           {isLoadingUsers ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -226,93 +257,28 @@ export const AdminUsers: React.FC = () => {
               Lỗi đồng bộ dữ liệu: {(usersError as any).message || "Không thể kết nối đến máy chủ API"}
             </div>
           ) : (
-            /* Users Card Table */
-            <UsersTable
-              users={users}
-              onEdit={handleOpenEdit}
-              onToggleStatus={toggleUserStatus}
-              onDelete={handleDeleteUser}
-            />
+            <>
+              <UsersTable
+                users={users}
+                onEdit={handleOpenEdit}
+                onToggleStatus={toggleUserStatus}
+                onDelete={handleDeleteUser}
+              />
+
+              <UsersPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                page={page}
+                setPage={setPage}
+              />
+            </>
           )}
         </div>
       </div>
 
-      {/* Stats Bento Layout Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Stat Card 1 */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg text-primary dark:text-primary-fixed-dim">
-              <UserCheck className="h-5 w-5" />
-            </div>
-            <span className="text-emerald-500 font-bold text-xs flex items-center gap-0.5">
-              <TrendingUp className="h-3.5 w-3.5" /> 12%
-            </span>
-          </div>
-          <div>
-            <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider">Người dùng mới (Tháng này)</p>
-            <h3 className="font-extrabold text-2xl text-slate-800 dark:text-white mt-1">1,284</h3>
-          </div>
-        </div>
+      <UsersStatsGrid onNavigateToVouchers={handleNavigateToVouchers} />
 
-        {/* Stat Card 2 */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 rounded-lg text-amber-500">
-              <Ticket className="h-5 w-5" />
-            </div>
-            <span className="text-amber-500 font-bold text-xs flex items-center gap-0.5">
-              <Minus className="h-3.5 w-3.5" /> 0%
-            </span>
-          </div>
-          <div>
-            <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider">Voucher đang hoạt động</p>
-            <h3 className="font-extrabold text-2xl text-slate-800 dark:text-white mt-1">24</h3>
-          </div>
-        </div>
-
-        {/* Stat Card 3 */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-500">
-              <DollarSign className="h-5 w-5" />
-            </div>
-            <span className="text-red-500 font-bold text-xs flex items-center gap-0.5">
-              <TrendingDown className="h-3.5 w-3.5" /> 5%
-            </span>
-          </div>
-          <div>
-            <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider">Tổng chiết khấu (VNĐ)</p>
-            <h3 className="font-extrabold text-2xl text-slate-800 dark:text-white mt-1">18.5M</h3>
-          </div>
-        </div>
-      </div>
-
-      {/* Marketing Campaign Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-850 p-8 flex flex-col sm:flex-row items-center justify-between gap-6 group shadow-lg shadow-indigo-500/10">
-        <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
-        <div className="relative z-10 space-y-2.5 text-center sm:text-left">
-          <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-widest inline-block">
-            Chiến dịch mùa hè
-          </span>
-          <h2 className="text-white font-extrabold text-lg tracking-tight">
-            Tăng tốc doanh số với Voucher Combo mới
-          </h2>
-          <p className="text-indigo-200 max-w-xl text-xs leading-relaxed">
-            Thiết lập các chương trình giảm giá chéo giữa các thể loại sách để khuyến khích người dùng mua nhiều hơn trong mùa hè này.
-          </p>
-        </div>
-        <div className="relative z-10 shrink-0">
-          <button 
-            onClick={() => navigate("/admin/vouchers")}
-            className="bg-white hover:bg-slate-50 text-indigo-700 font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xl transition-all hover:scale-[1.03] active:scale-95 cursor-pointer"
-          >
-            Bắt đầu ngay
-          </button>
-        </div>
-      </div>
-
-      {/* Dialog for Add / Edit */}
       <UserDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -330,7 +296,32 @@ export const AdminUsers: React.FC = () => {
         roles={roles}
         onSave={handleSave}
       />
+
+      {/* Shadcn UI AlertDialog confirmation */}
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa tài khoản người dùng?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản người dùng này không? Hành động này không thể hoàn tác và mọi thông tin liên quan sẽ bị xóa sạch khỏi hệ thống.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (userToDelete) {
+                  deleteUserMutation.mutate(userToDelete);
+                  setUserToDelete(null);
+                }
+              }}
+            >
+              Xóa vĩnh viễn
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
-

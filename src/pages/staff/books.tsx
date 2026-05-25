@@ -1,13 +1,35 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Search, PlusCircle, Loader2, ChevronLeft, ChevronRight, X, Filter } from "lucide-react";
+import { PlusCircle, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
 import { BooksGrid } from "@/components/staff-books/books-grid";
 import { BookDialog } from "@/components/staff-books/book-dialog";
+import { BooksFilters } from "@/components/staff-books/books-filters";
+
 import { bookService, type Book, type BookStatus } from "@/services/book-service";
 import { categoryService } from "@/services/category-service";
 import { authorService } from "@/services/author-service";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const StaffBooks: React.FC = () => {
   const queryClient = useQueryClient();
@@ -22,11 +44,13 @@ export const StaffBooks: React.FC = () => {
   const [isAddMode, setIsAddMode] = useState(true);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
 
-  // Limit strictly 10
+  // AlertDialog confirmation state
+  const [bookToDelete, setBookToDelete] = useState<string | null>(null);
+
   const limit = 10;
 
   // Debounce search input
-  React.useEffect(() => {
+  useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setPage(1);
@@ -34,7 +58,7 @@ export const StaffBooks: React.FC = () => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // 1. Fetch Books with API Filters and Limit 10
+  // 1. Fetch Books
   const { data: booksData, isLoading: isLoadingBooks, error: booksError } = useQuery({
     queryKey: ["books", page, debouncedSearch, selectedCategory, selectedAuthor],
     queryFn: () =>
@@ -47,13 +71,13 @@ export const StaffBooks: React.FC = () => {
       }),
   });
 
-  // 2. Fetch Categories (for Dialog dropdown selection & filters)
+  // 2. Fetch Categories
   const { data: categoriesData } = useQuery({
     queryKey: ["categories"],
     queryFn: () => categoryService.getCategories(),
   });
 
-  // 3. Fetch Authors (for Dialog selection & filters)
+  // 3. Fetch Authors
   const { data: authorsData } = useQuery({
     queryKey: ["authors"],
     queryFn: () => authorService.getAuthors(),
@@ -65,10 +89,9 @@ export const StaffBooks: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["books"] });
       setIsDialogOpen(false);
+      toast.success("Thêm mới sách thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi tạo sách: ${err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi tạo sách: ${err.message}`),
   });
 
   const updateBookMutation = useMutation({
@@ -76,20 +99,18 @@ export const StaffBooks: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["books"] });
       setIsDialogOpen(false);
+      toast.success("Cập nhật thông tin sách thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi cập nhật thông tin: ${err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi cập nhật thông tin: ${err.message}`),
   });
 
   const deleteBookMutation = useMutation({
     mutationFn: (id: string) => bookService.deleteBook(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["books"] });
+      toast.success("Đã xóa cuốn sách khỏi hệ thống thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi xóa sách: ${err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi xóa sách: ${err.message}`),
   });
 
   const toggleStatusMutation = useMutation({
@@ -97,25 +118,25 @@ export const StaffBooks: React.FC = () => {
       bookService.updateBook(id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["books"] });
+      toast.success("Cập nhật trạng thái sách thành công!");
     },
-    onError: (err: any) => {
-      alert(`Lỗi thay đổi trạng thái: ${err.message}`);
-    },
+    onError: (err: any) => toast.error(`Lỗi thay đổi trạng thái: ${err.message}`),
   });
 
-  const handleOpenAdd = () => {
+  // Callbacks
+  const handleOpenAdd = useCallback(() => {
     setIsAddMode(true);
     setEditingBook(null);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleOpenEdit = (b: Book) => {
+  const handleOpenEdit = useCallback((b: Book) => {
     setIsAddMode(false);
     setEditingBook(b);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleSave = (formData: FormData) => {
+  const handleSave = useCallback((formData: FormData) => {
     if (isAddMode) {
       createBookMutation.mutate(formData);
     } else if (editingBook) {
@@ -128,44 +149,60 @@ export const StaffBooks: React.FC = () => {
         categoryId: formData.getAll("categoryId[]") as string[],
         authorId: formData.getAll("authorId[]") as string[],
       };
-
       updateBookMutation.mutate({ id: editingBook.id, data });
     }
-  };
+  }, [isAddMode, editingBook, createBookMutation, updateBookMutation]);
 
-  const toggleBookStatus = (b: Book) => {
+  const toggleBookStatus = useCallback((b: Book) => {
     const nextStatus = b.status === "ACTIVE" ? "HIDDEN" : "ACTIVE";
     toggleStatusMutation.mutate({ id: b.id, status: nextStatus });
-  };
+  }, [toggleStatusMutation]);
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Bạn có thực sự muốn ngừng xuất bản và xóa cuốn sách này khỏi hệ thống?")) {
-      deleteBookMutation.mutate(id);
-    }
-  };
+  const handleDelete = useCallback((id: string) => {
+    setBookToDelete(id);
+  }, []);
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     setSearchTerm("");
     setDebouncedSearch("");
     setSelectedCategory("");
     setSelectedAuthor("");
     setSelectedStatus("ALL");
     setPage(1);
-  };
+  }, []);
 
-  // Get paginated books & metadata
   const paginatedResult = booksData?.data;
-  const rawBooks = paginatedResult?.data || paginatedResult?.items || [];
-  const books = rawBooks.filter((b: Book) => selectedStatus === "ALL" || b.status === selectedStatus);
+  const rawBooks = useMemo(() => paginatedResult?.data || paginatedResult?.items || [], [paginatedResult]);
+  const books = useMemo(() => rawBooks.filter((b: Book) => selectedStatus === "ALL" || b.status === selectedStatus), [rawBooks, selectedStatus]);
 
   const totalItems = paginatedResult?.meta?.totalItems || 0;
   const totalPages = paginatedResult?.meta?.totalPages || 1;
 
-  const categories = categoriesData?.data || [];
-  const authors = authorsData?.data || [];
+  const categories = useMemo(() => categoriesData?.data || [], [categoriesData]);
+  const authors = useMemo(() => authorsData?.data || [], [authorsData]);
+
+  const renderPages = () => {
+    const pages = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (page <= 3) {
+        pages.push(1, 2, 3, 4, "ellipsis", totalPages);
+      } else if (page >= totalPages - 2) {
+        pages.push(1, "ellipsis", totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, "ellipsis", page - 1, page, page + 1, "ellipsis", totalPages);
+      }
+    }
+    return pages;
+  };
 
   return (
     <div className="space-y-6">
+      <label className="sr-only">Quản lý kho sách thư viện</label>
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -183,97 +220,19 @@ export const StaffBooks: React.FC = () => {
         </Button>
       </div>
 
-      {/* Filter Bar Grid */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Keyword Search */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Từ khóa</label>
-            <div className="relative">
-              <Search className="absolute inset-y-0 left-3 h-3.5 w-3.5 my-auto text-slate-400" />
-              <Input
-                placeholder="Tên sách, tác giả..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-lg h-9 w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary outline-none"
-              />
-            </div>
-          </div>
-
-          {/* Category Dropdown */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Thể loại</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => {
-                setSelectedCategory(e.target.value);
-                setPage(1);
-              }}
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary h-9 transition-all cursor-pointer"
-            >
-              <option value="">Tất cả thể loại</option>
-              {categories.map((cat: any) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Author Dropdown */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Tác giả</label>
-            <select
-              value={selectedAuthor}
-              onChange={(e) => {
-                setSelectedAuthor(e.target.value);
-                setPage(1);
-              }}
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary h-9 transition-all cursor-pointer"
-            >
-              <option value="">Tất cả tác giả</option>
-              {authors.map((aut: any) => (
-                <option key={aut.id} value={aut.id}>
-                  {aut.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status Switcher Toggle pills */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Trạng thái</label>
-            <div className="flex gap-1 p-1 bg-slate-50 dark:bg-slate-850 rounded-lg border border-slate-200 dark:border-slate-800 h-9">
-              {(["ALL", "ACTIVE", "HIDDEN", "DRAFT"] as const).map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setSelectedStatus(st)}
-                  className={`flex-1 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                    selectedStatus === st
-                      ? "bg-primary text-white shadow-sm shadow-primary/10"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
-                >
-                  {st === "ALL" ? "Tất cả" : st === "ACTIVE" ? "Mở bán" : st === "HIDDEN" ? "Ẩn" : "Nháp"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Clear Filters Button */}
-        {(searchTerm || selectedCategory || selectedAuthor || selectedStatus !== "ALL") && (
-          <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <button
-              onClick={handleClearFilters}
-              className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-lg text-xs font-extrabold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer animate-fade-in"
-            >
-              <X className="h-3.5 w-3.5" />
-              Xóa bộ lọc
-            </button>
-          </div>
-        )}
-      </div>
+      <BooksFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        selectedAuthor={selectedAuthor}
+        setSelectedAuthor={setSelectedAuthor}
+        selectedStatus={selectedStatus}
+        setSelectedStatus={setSelectedStatus}
+        categories={categories}
+        authors={authors}
+        onClearFilters={handleClearFilters}
+      />
 
       {isLoadingBooks ? (
         <div className="flex flex-col justify-center items-center py-20 space-y-4">
@@ -289,7 +248,6 @@ export const StaffBooks: React.FC = () => {
           Không tìm thấy cuốn sách nào khớp với bộ lọc của bạn.
         </div>
       ) : (
-        /* Grid of Books + Pagination Wrapper */
         <div className="space-y-6">
           <BooksGrid
             books={books}
@@ -299,8 +257,9 @@ export const StaffBooks: React.FC = () => {
           />
 
           {/* Styled Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="px-6 py-4 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between bg-white dark:bg-slate-900 shadow-sm">
+          {totalPages > 0 && (
+            <div className="px-6 py-4 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900 shadow-sm">
+              <label className="sr-only">Phân trang danh sách sách</label>
               <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                 Đang hiển thị{" "}
                 <span className="font-extrabold text-slate-700 dark:text-slate-350">{Math.min((page - 1) * 10 + 1, totalItems)}</span>
@@ -308,43 +267,61 @@ export const StaffBooks: React.FC = () => {
                 <span className="font-extrabold text-slate-700 dark:text-slate-350">{Math.min(page * 10, totalItems)}</span> trong
                 tổng số <span className="font-extrabold text-primary dark:text-primary-fixed-dim">{totalItems}</span> đầu sách
               </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setPage(page - 1)}
-                  disabled={page <= 1}
-                  className="p-1.5 border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                >
-                  <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                </button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
-                  <button
-                    key={pg}
-                    onClick={() => setPage(pg)}
-                    className={`w-7.5 h-7.5 rounded text-xs font-extrabold transition-all cursor-pointer ${
-                      page === pg
-                        ? "bg-primary text-white shadow-sm shadow-primary/20"
-                        : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
-                    }`}
-                  >
-                    {pg}
-                  </button>
-                ))}
+              <Pagination className="mx-0 w-auto">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page > 1) setPage(page - 1);
+                      }}
+                      aria-disabled={page <= 1}
+                      className={page <= 1 ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                      text="Trước"
+                    />
+                  </PaginationItem>
 
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={page >= totalPages}
-                  className="p-1.5 border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                >
-                  <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                </button>
-              </div>
+                  {renderPages().map((pg, idx) => (
+                    <PaginationItem key={idx}>
+                      {pg === "ellipsis" ? (
+                        <PaginationEllipsis />
+                      ) : (
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setPage(pg as number);
+                          }}
+                          isActive={page === pg}
+                          className="cursor-pointer font-bold text-xs"
+                        >
+                          {pg}
+                        </PaginationLink>
+                      )}
+                    </PaginationItem>
+                  ))}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page < totalPages) setPage(page + 1);
+                      }}
+                      aria-disabled={page >= totalPages}
+                      className={page >= totalPages ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                      text="Sau"
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
           )}
         </div>
       )}
 
-      {/* Add / Edit Dialog */}
       <BookDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -355,6 +332,32 @@ export const StaffBooks: React.FC = () => {
         onSave={handleSave}
         isSaving={createBookMutation.isPending || updateBookMutation.isPending}
       />
+
+      {/* Shadcn UI AlertDialog confirmation */}
+      <AlertDialog open={!!bookToDelete} onOpenChange={(open) => !open && setBookToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận ngừng xuất bản sách?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có thực sự muốn ngừng xuất bản và xóa cuốn sách này khỏi hệ thống? Hành động này sẽ thay đổi trạng thái của sách.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Quay lại</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (bookToDelete) {
+                  deleteBookMutation.mutate(bookToDelete);
+                  setBookToDelete(null);
+                }
+              }}
+            >
+              Ngừng xuất bản & Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

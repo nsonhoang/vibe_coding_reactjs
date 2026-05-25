@@ -5,6 +5,17 @@ import { AuthorsPanel } from "@/components/staff-categories/authors-panel";
 import { categoryService } from "@/services/category-service";
 import { authorService } from "@/services/author-service";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const StaffCategories: React.FC = () => {
   const queryClient = useQueryClient();
@@ -13,6 +24,10 @@ export const StaffCategories: React.FC = () => {
   const [catName, setCatName] = useState("");
   const [athName, setAthName] = useState("");
   const [athBio, setAthBio] = useState("");
+
+  // Confirmation States
+  const [catToDelete, setCatToDelete] = useState<string | null>(null);
+  const [authorToDelete, setAuthorToDelete] = useState<string | null>(null);
 
   // 1. Queries
   const { data: categoriesData, isLoading: isLoadingCats, error: catsError } = useQuery({
@@ -31,9 +46,10 @@ export const StaffCategories: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       setCatName("");
+      toast.success("Thêm mới thể loại thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi thêm thể loại: ${err.message}`);
+      toast.error(`Lỗi thêm thể loại: ${err.message}`);
     },
   });
 
@@ -41,9 +57,10 @@ export const StaffCategories: React.FC = () => {
     mutationFn: (id: string) => categoryService.deleteCategory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Đã xóa thể loại thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi xóa thể loại: ${err.message}`);
+      toast.error(`Lỗi xóa thể loại: ${err.message}`);
     },
   });
 
@@ -54,9 +71,10 @@ export const StaffCategories: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["authors"] });
       setAthName("");
       setAthBio("");
+      toast.success("Thêm mới tác giả thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi thêm tác giả: ${err.message}`);
+      toast.error(`Lỗi thêm tác giả: ${err.message}`);
     },
   });
 
@@ -64,9 +82,10 @@ export const StaffCategories: React.FC = () => {
     mutationFn: (id: string) => authorService.deleteAuthor(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["authors"] });
+      toast.success("Đã xóa tác giả khỏi hệ thống thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi xóa tác giả: ${err.message}`);
+      toast.error(`Lỗi xóa tác giả: ${err.message}`);
     },
   });
 
@@ -83,15 +102,11 @@ export const StaffCategories: React.FC = () => {
   };
 
   const handleDeleteCategory = (id: string) => {
-    if (window.confirm("Bạn muốn xóa thể loại này? Các đầu sách thuộc thể loại này sẽ chuyển sang 'Chưa phân loại'.")) {
-      deleteCategoryMutation.mutate(id);
-    }
+    setCatToDelete(id);
   };
 
   const handleDeleteAuthor = (id: string) => {
-    if (window.confirm("Bạn muốn xóa tác giả này khỏi hệ thống?")) {
-      deleteAuthorMutation.mutate(id);
-    }
+    setAuthorToDelete(id);
   };
 
   const categories = categoriesData?.data || [];
@@ -116,6 +131,7 @@ export const StaffCategories: React.FC = () => {
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
+      <label className="sr-only">Quản lý thể loại và tác giả</label>
       {/* CATEGORIES COLUMN */}
       <div className="space-y-6">
         <CategoriesPanel
@@ -139,6 +155,58 @@ export const StaffCategories: React.FC = () => {
           onDeleteAuthor={handleDeleteAuthor}
         />
       </div>
+
+      {/* Category deletion alert */}
+      <AlertDialog open={!!catToDelete} onOpenChange={(open) => !open && setCatToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa thể loại sách?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn muốn xóa thể loại này? Các đầu sách thuộc thể loại này sẽ chuyển sang trạng thái "Chưa phân loại". Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (catToDelete) {
+                  deleteCategoryMutation.mutate(catToDelete);
+                  setCatToDelete(null);
+                }
+              }}
+            >
+              Xóa thể loại
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Author deletion alert */}
+      <AlertDialog open={!!authorToDelete} onOpenChange={(open) => !open && setAuthorToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa tác giả?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn muốn xóa tác giả này khỏi hệ thống? Các đầu sách liên kết với tác giả này vẫn được bảo toàn nhưng thông tin tác giả sẽ bị gỡ bỏ.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (authorToDelete) {
+                  deleteAuthorMutation.mutate(authorToDelete);
+                  setAuthorToDelete(null);
+                }
+              }}
+            >
+              Xóa tác giả
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
