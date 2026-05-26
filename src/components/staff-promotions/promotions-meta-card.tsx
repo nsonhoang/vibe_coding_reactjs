@@ -1,13 +1,14 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, CalendarDays, Percent, Edit3, Trash2 } from "lucide-react";
+import { Calendar, CalendarDays, Percent, Edit3, Trash2, BellRing } from "lucide-react";
 import type { Promotion } from "@/services/promotion-service";
 
 interface PromotionsMetaCardProps {
   promotion: Promotion;
   onEditPromo: (promo: Promotion) => void;
   onRemovePromo: (id: string) => void;
+  onSendNotification: (promo: Promotion) => void;
   formatDate: (dateStr: string) => string;
   getPromoStatus: (promo: Promotion) => { text: string; class: string };
 }
@@ -16,6 +17,7 @@ export const PromotionsMetaCard: React.FC<PromotionsMetaCardProps> = ({
   promotion,
   onEditPromo,
   onRemovePromo,
+  onSendNotification,
   formatDate,
   getPromoStatus,
 }) => {
@@ -83,8 +85,17 @@ export const PromotionsMetaCard: React.FC<PromotionsMetaCardProps> = ({
           </div>
         </div>
 
-        {/* Edit & Delete Action Panel */}
+        {/* Edit, Delete & Notification Action Panel */}
         <div className="pt-5 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2.5">
+          <Button
+            type="button"
+            onClick={() => onSendNotification(promotion)}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-10 rounded-lg shadow-sm shadow-blue-500/10 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+          >
+            <BellRing className="h-4 w-4 animate-swing" />
+            Gửi thông báo ưu đãi
+          </Button>
+
           <Button
             type="button"
             onClick={() => onEditPromo(promotion)}

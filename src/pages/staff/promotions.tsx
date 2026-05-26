@@ -1,240 +1,82 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+import React from "react";
 import { Loader2, ArrowLeft, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 import { PromotionsForm } from "@/components/staff-promotions/promotions-form";
 import { PromotionsListTable } from "@/components/staff-promotions/promotions-list-table";
 import { PromotionsDetailView } from "@/components/staff-promotions/promotions-detail-view";
-import { toLocalDateTimeString, formatDate, getPromoStatus } from "@/components/staff-promotions/promo-utils";
-
-import { promotionService, type Promotion } from "@/services/promotion-service";
-import { bookService } from "@/services/book-service";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { PromotionsDeleteDialog } from "@/components/staff-promotions/promotions-delete-dialog";
+import { PromotionsNotifyDialog } from "@/components/staff-promotions/promotions-notify-dialog";
+import { formatDate, getPromoStatus } from "@/components/staff-promotions/promo-utils";
+import { usePromotions } from "@/hooks/use-promotions";
 
 export const StaffPromotions: React.FC = () => {
-  const queryClient = useQueryClient();
-
-  // Navigation states
-  const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [editingPromo, setEditingPromo] = useState<Promotion | null>(null);
-  const [selectedBookIdForDetail, setSelectedBookIdForDetail] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const limit = 10;
-
-  // Form states for creation/editing
-  const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
-  const [promoName, setPromoName] = useState("");
-  const [rate, setRate] = useState(10);
-  const [startDate, setStartDate] = useState(toLocalDateTimeString(new Date()));
-  const [endDate, setEndDate] = useState(toLocalDateTimeString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)));
-
-  // Filters state
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [startDateFilter, setStartDateFilter] = useState("");
-  const [endDateFilter, setEndDateFilter] = useState("");
-
-  // Deletion confirmation state
-  const [promoToDelete, setPromoToDelete] = useState<string | null>(null);
-
-  // Sync debounced search keyword
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Reset page when any filter parameters change
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, statusFilter, startDateFilter, endDateFilter]);
-
-  // 1. Fetch all books for selection
-  const { data: booksData, isLoading: isLoadingBooks } = useQuery({
-    queryKey: ["books-all-select"],
-    queryFn: () => bookService.getBooks({ limit: 100 }),
-  });
-  const booksList = useMemo(() => booksData?.data?.data || booksData?.data?.items || [], [booksData]);
-
-  // 2. Fetch promotions
-  const { data: promotionsData, isLoading: isLoadingPromos, error } = useQuery({
-    queryKey: ["promotions", page, debouncedSearch, statusFilter, startDateFilter, endDateFilter],
-    queryFn: () =>
-      promotionService.getPromotions({
-        page,
-        limit,
-        keyword: debouncedSearch.trim() || undefined,
-        isActive: statusFilter === "ACTIVE" ? true : statusFilter === "INACTIVE" ? false : undefined,
-        startDate: startDateFilter ? new Date(startDateFilter).toISOString() : undefined,
-        endDate: endDateFilter ? new Date(endDateFilter).toISOString() : undefined,
-      }),
-  });
-
-  const paginatedResult = promotionsData?.data;
-  const rawPromotions = useMemo(() => paginatedResult?.data || paginatedResult?.items || [], [paginatedResult]);
-  
-  const promotions = useMemo(() => {
-    return rawPromotions.map((promo: any) => ({
-      ...promo,
-      books: promo.books && promo.books.length > 0
-        ? promo.books
-        : (booksList.filter((b: any) => promo.bookIds?.includes(b.id)).map((b: any) => ({
-            id: b.id,
-            title: b.title,
-            price: b.price
-          })) || []),
-    }));
-  }, [rawPromotions, booksList]);
-
-  const totalItems = paginatedResult?.meta?.totalItems || 0;
-  const totalPages = paginatedResult?.meta?.totalPages || 1;
-
-  const activeSelectedPromo = useMemo(() => {
-    if (!selectedPromo) return null;
-    return promotions.find((p) => p.id === selectedPromo.id) || {
-      ...selectedPromo,
-      books: selectedPromo.books && selectedPromo.books.length > 0
-        ? selectedPromo.books
-        : (booksList.filter((b: any) => selectedPromo.bookIds?.includes(b.id)).map((b: any) => ({
-            id: b.id,
-            title: b.title,
-            price: b.price
-          })) || []),
-    };
-  }, [selectedPromo, promotions, booksList]);
-
-  // 3. Query specific Book Details
-  const { data: bookDetailData, isLoading: isLoadingBookDetail } = useQuery({
-    queryKey: ["book-detail-promo", selectedBookIdForDetail],
-    queryFn: () => bookService.getBookById(selectedBookIdForDetail),
-    enabled: !!selectedBookIdForDetail,
-  });
-  const bookDetail = bookDetailData?.data;
-
-  // Auto-select first book in details view
-  useEffect(() => {
-    if (activeSelectedPromo?.books && activeSelectedPromo.books.length > 0) {
-      setSelectedBookIdForDetail(activeSelectedPromo.books[0].id);
-    } else {
-      setSelectedBookIdForDetail("");
-    }
-  }, [activeSelectedPromo]);
-
-  // Mutations
-  const createPromoMutation = useMutation({
-    mutationFn: (data: any) => promotionService.createPromotion(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["promotions"] });
-      resetFormState();
-      setIsAddingNew(false);
-      toast.success("Đã thêm chương trình chiết khấu thành công!");
-    },
-    onError: (err: any) => toast.error(`Lỗi tạo ưu đãi: ${err.response?.data?.message || err.message}`),
-  });
-
-  const updatePromoMutation = useMutation({
-    mutationFn: ({ id, data }: any) => promotionService.updatePromotion(id, data),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["promotions"] });
-      resetFormState();
-      if (res.data) setSelectedPromo(res.data);
-      setEditingPromo(null);
-      toast.success("Đã cập nhật chương trình chiết khấu thành công!");
-    },
-    onError: (err: any) => toast.error(`Lỗi cập nhật ưu đãi: ${err.response?.data?.message || err.message}`),
-  });
-
-  const deletePromoMutation = useMutation({
-    mutationFn: (id: string) => promotionService.deletePromotion(id),
-    onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ["promotions"] });
-      if (selectedPromo?.id === id) setSelectedPromo(null);
-      if (editingPromo?.id === id) {
-        setEditingPromo(null);
-        resetFormState();
-      }
-      toast.success("Đã gỡ bỏ chương trình chiết khấu thành công!");
-    },
-    onError: (err: any) => toast.error(`Lỗi gỡ bỏ ưu đãi: ${err.response?.data?.message || err.message}`),
-  });
-
-  const resetFormState = useCallback(() => {
-    setPromoName("");
-    setRate(10);
-    setSelectedBookIds([]);
-    setStartDate(toLocalDateTimeString(new Date()));
-    setEndDate(toLocalDateTimeString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)));
-  }, []);
-
-  const applyPromoSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (!promoName.trim() || selectedBookIds.length === 0 || rate <= 0 || rate > 90) {
-      toast.warning("Vui lòng điền tên chương trình, chọn ít nhất 1 đầu sách và đặt chiết khấu phù hợp.");
-      return;
-    }
-    const startISO = new Date(startDate).toISOString();
-    const endISO = new Date(endDate).toISOString();
-    if (new Date(startDate) > new Date(endDate)) {
-      toast.warning("Ngày bắt đầu không được lớn hơn ngày kết thúc.");
-      return;
-    }
-    if (editingPromo) {
-      updatePromoMutation.mutate({
-        id: editingPromo.id,
-        data: { name: promoName.trim(), discountRate: rate, startDate: startISO, endDate: endISO, bookIds: selectedBookIds },
-      });
-    } else {
-      createPromoMutation.mutate({ name: promoName.trim(), discountRate: rate, startDate: startISO, endDate: endISO, bookIds: selectedBookIds });
-    }
-  }, [promoName, selectedBookIds, rate, startDate, endDate, editingPromo, createPromoMutation, updatePromoMutation]);
-
-  const handleStartEdit = useCallback((promo: Promotion) => {
-    setEditingPromo(promo);
-    setPromoName(promo.name);
-    setRate(promo.discountRate);
-    setStartDate(toLocalDateTimeString(promo.startDate));
-    setEndDate(toLocalDateTimeString(promo.endDate));
-    setSelectedBookIds(promo.bookIds || promo.books?.map((b) => b.id) || []);
-  }, []);
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingPromo(null);
-    setIsAddingNew(false);
-    resetFormState();
-  }, [resetFormState]);
-
-  const removePromo = useCallback((id: string) => {
-    setPromoToDelete(id);
-  }, []);
-
-  const handleClearFilters = useCallback(() => {
-    setSearchTerm("");
-    setStatusFilter("ALL");
-    setStartDateFilter("");
-    setEndDateFilter("");
-  }, []);
-
-  const handleBackToList = useCallback(() => {
-    setSelectedPromo(null);
-    setSelectedBookIdForDetail("");
-  }, []);
-
-  const handleAddNew = useCallback(() => {
-    resetFormState();
-    setIsAddingNew(true);
-  }, [resetFormState]);
+  const {
+    selectedPromo,
+    setSelectedPromo,
+    isAddingNew,
+    editingPromo,
+    selectedBookIdForDetail,
+    setSelectedBookIdForDetail,
+    page,
+    setPage,
+    
+    selectedBookIds,
+    setSelectedBookIds,
+    promoName,
+    setPromoName,
+    rate,
+    setRate,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    
+    searchTerm,
+    setSearchTerm,
+    statusFilter,
+    setStatusFilter,
+    startDateFilter,
+    setStartDateFilter,
+    endDateFilter,
+    setEndDateFilter,
+    
+    promoToDelete,
+    setPromoToDelete,
+    isNotifyModalOpen,
+    setIsNotifyModalOpen,
+    notifyTitle,
+    setNotifyTitle,
+    notifyBody,
+    setNotifyBody,
+    promoToNotify,
+    
+    booksList,
+    isLoadingBooks,
+    promotions,
+    isLoadingPromos,
+    error,
+    totalPages,
+    totalItems,
+    activeSelectedPromo,
+    isLoadingBookDetail,
+    bookDetail,
+    
+    handleOpenNotifyModal,
+    handleSendNotificationSubmit,
+    applyPromoSubmit,
+    handleStartEdit,
+    handleCancelEdit,
+    removePromo,
+    confirmDeletePromo,
+    handleClearFilters,
+    handleBackToList,
+    handleAddNew,
+    
+    isPendingDelete,
+    isPendingNotify,
+    isPendingSubmit,
+  } = usePromotions();
 
   if (isLoadingBooks || isLoadingPromos) {
     return (
@@ -284,7 +126,7 @@ export const StaffPromotions: React.FC = () => {
               endDate={endDate}
               setEndDate={setEndDate}
               onApplyPromo={applyPromoSubmit}
-              isSubmitting={createPromoMutation.isPending || updatePromoMutation.isPending}
+              isSubmitting={isPendingSubmit}
               isEditMode={!!editingPromo}
               onCancelEdit={handleCancelEdit}
             />
@@ -300,6 +142,7 @@ export const StaffPromotions: React.FC = () => {
           bookDetail={bookDetail}
           onStartEdit={handleStartEdit}
           onRemovePromo={removePromo}
+          onSendNotification={handleOpenNotifyModal}
           formatDate={formatDate}
           getPromoStatus={getPromoStatus}
         />
@@ -325,7 +168,7 @@ export const StaffPromotions: React.FC = () => {
             promotions={promotions}
             onSelectPromo={setSelectedPromo}
             onRemovePromo={removePromo}
-            isSubmitting={deletePromoMutation.isPending}
+            isSubmitting={isPendingDelete}
             currentPage={page}
             totalPages={totalPages}
             totalItems={totalItems}
@@ -346,30 +189,28 @@ export const StaffPromotions: React.FC = () => {
       )}
 
       {/* Modern Shadcn UI AlertDialog confirmation */}
-      <AlertDialog open={!!promoToDelete} onOpenChange={(open) => !open && setPromoToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận gỡ bỏ chương trình?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bạn có chắc chắn muốn gỡ bỏ chương trình chiết khấu này không? Hành động này không thể hoàn tác.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                if (promoToDelete) {
-                  deletePromoMutation.mutate(promoToDelete);
-                  setPromoToDelete(null);
-                }
-              }}
-            >
-              Gỡ bỏ
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PromotionsDeleteDialog
+        isOpen={!!promoToDelete}
+        onOpenChange={(open) => !open && setPromoToDelete(null)}
+        onConfirm={confirmDeletePromo}
+      />
+
+      {/* Premium Widescreen Broadcast Promotion Notification Dialog */}
+      <PromotionsNotifyDialog
+        isOpen={isNotifyModalOpen}
+        onOpenChange={(open) => {
+          if (!open && !isPendingNotify) {
+            setIsNotifyModalOpen(false);
+          }
+        }}
+        promo={promoToNotify}
+        notifyTitle={notifyTitle}
+        setNotifyTitle={setNotifyTitle}
+        notifyBody={notifyBody}
+        setNotifyBody={setNotifyBody}
+        onSubmit={handleSendNotificationSubmit}
+        isPending={isPendingNotify}
+      />
     </div>
   );
 };

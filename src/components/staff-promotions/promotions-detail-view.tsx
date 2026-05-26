@@ -14,6 +14,7 @@ interface PromotionsDetailViewProps {
   bookDetail: any;
   onStartEdit: (promo: Promotion) => void;
   onRemovePromo: (id: string) => void;
+  onSendNotification: (promo: Promotion) => void;
   formatDate: (dateStr: string) => string;
   getPromoStatus: (promo: Promotion) => { text: string; class: string };
 }
@@ -27,6 +28,7 @@ export const PromotionsDetailView: React.FC<PromotionsDetailViewProps> = memo(({
   bookDetail,
   onStartEdit,
   onRemovePromo,
+  onSendNotification,
   formatDate,
   getPromoStatus,
 }) => {
@@ -73,6 +75,7 @@ export const PromotionsDetailView: React.FC<PromotionsDetailViewProps> = memo(({
             promotion={activeSelectedPromo}
             onEditPromo={onStartEdit}
             onRemovePromo={onRemovePromo}
+            onSendNotification={onSendNotification}
             formatDate={formatDate}
             getPromoStatus={getPromoStatus}
           />
