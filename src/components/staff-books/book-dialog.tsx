@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import type { Category } from "@/services/category-service";
 import type { Author } from "@/services/author-service";
 import type { Book, BookStatus } from "@/services/book-service";
+import { toast } from "sonner";
 
 import { CoverImagePanel } from "./cover-image-panel";
 import { BookInfoForm } from "./book-info-form";
@@ -82,19 +83,19 @@ export const BookDialog: React.FC<BookDialogProps> = ({
 
   const handleSubmit = () => {
     if (!title || price < 0) {
-      alert("Vui lòng nhập đầy đủ Tên sách và Giá trị hợp lệ.");
+      toast.warning("Vui lòng nhập đầy đủ Tên sách và Giá trị hợp lệ.");
       return;
     }
     if (selectedCategories.length === 0) {
-      alert("Vui lòng chọn ít nhất một Thể loại.");
+      toast.warning("Vui lòng chọn ít nhất một Thể loại.");
       return;
     }
     if (selectedAuthors.length === 0) {
-      alert("Vui lòng chọn ít nhất một Tác giả.");
+      toast.warning("Vui lòng chọn ít nhất một Tác giả.");
       return;
     }
     if (isAddMode && !imageFile) {
-      alert("Vui lòng chọn ảnh bìa cho sách mới.");
+      toast.warning("Vui lòng chọn ảnh bìa cho sách mới.");
       return;
     }
 

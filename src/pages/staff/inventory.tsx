@@ -1,17 +1,37 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { InventoryAlerts } from "@/components/staff-inventory/inventory-alerts";
 import { InventoryTable } from "@/components/staff-inventory/inventory-table";
 import { InventoryLogsPanel } from "@/components/staff-inventory/inventory-logs-panel";
+import { InventoryHeader } from "@/components/staff-inventory/inventory-header";
+import { InventoryStats } from "@/components/staff-inventory/inventory-stats";
 import { InventoryAdjustModal } from "@/components/staff-inventory/inventory-adjust-modal";
+import { InventoryCreateModal } from "@/components/staff-inventory/inventory-create-modal";
+import { InventoryDetailLogsDialog } from "@/components/staff-inventory/inventory-detail-logs-dialog";
 import { inventoryService } from "@/services/inventory-service";
-import { Loader2, Plus, Search, BookOpen, Layers, AlertTriangle, Activity } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export const StaffInventory: React.FC = () => {
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isLogsDialogOpen, setIsLogsDialogOpen] = useState(false);
+  const [clickedInventoryItem, setClickedInventoryItem] = useState<any>(null);
+
+  // Advanced Filter States for Paginated Inventory Logs
+  const [logPage, setLogPage] = useState(1);
+  const [logType, setLogType] = useState<"IN" | "OUT" | "ADJUST" | "">("");
+  const [logFromDate, setLogFromDate] = useState("");
+  const [logToDate, setLogToDate] = useState("");
+
+  // Helper: Crash-proof ISO Date parser
+  const toSafeISOString = (dateStr: string) => {
+    if (!dateStr) return undefined;
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  };
 
   // 1. Fetch all Inventory Items
   const { data: inventoryData, isLoading, error } = useQuery({
@@ -21,23 +41,24 @@ export const StaffInventory: React.FC = () => {
 
   const items = inventoryData?.data || [];
 
-  // Sync selectedId when items are loaded
-  useEffect(() => {
-    if (items.length > 0 && !selectedId) {
-      setSelectedId(items[0].id);
-    }
-  }, [items, selectedId]);
-
-  // 2. Fetch Detailed Inventory with Logs
-  const { data: selectedDetailData, isLoading: isLoadingLogs } = useQuery({
-    queryKey: ["inventory-detail", selectedId],
-    queryFn: () => inventoryService.getInventoryById(selectedId),
-    enabled: !!selectedId,
+  // 2. Fetch Paginated Inventory Logs (Always global / system-wide transaction log!)
+  const { data: logsData, isLoading: isLoadingLogs } = useQuery({
+    queryKey: ["inventory-logs", logPage, logType, logFromDate, logToDate],
+    queryFn: () =>
+      inventoryService.getInventoryLogs({
+        page: logPage,
+        limit: 10, // 10 logs per page as requested
+        inventoryId: undefined, // Always global, no sidebar filtering!
+        type: logType || undefined,
+        from: toSafeISOString(logFromDate),
+        to: toSafeISOString(logToDate),
+      }),
   });
 
-  const selectedItemDetail = selectedDetailData?.data;
-  const selectedBookTitle = selectedItemDetail?.book?.title || "Đang tải...";
-  const selectedLogs = selectedItemDetail?.logs || [];
+  const logsResult = logsData?.data;
+  const selectedLogs = (logsResult?.data || []) as any[];
+  const logTotalPages = logsResult?.meta?.totalPages || 1;
+  const logTotalLogs = logsResult?.meta?.total || 0;
 
   // 3. Adjust Stock Mutation
   const adjustMutation = useMutation({
@@ -49,19 +70,19 @@ export const StaffInventory: React.FC = () => {
     }) =>
       inventoryService.createInventoryLog({
         inventoryId: data.inventoryId,
-        change: data.type === "EXPORT" ? -Math.abs(data.change) : Math.abs(data.change),
+        change: Math.abs(data.change),
         type: data.type,
         reason: data.reason,
       }),
     onSuccess: () => {
-      // Invalidate queries to refresh list and detail logs
+      // Invalidate queries to refresh list and system logs
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-detail", selectedId] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
       setIsAdjustModalOpen(false);
-      alert("Đã ghi nhận điều chỉnh tồn kho thành công!");
+      toast.success("Đã ghi nhận điều chỉnh tồn kho thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi điều chỉnh kho: ${err.message || "Đã xảy ra lỗi"}`);
+      toast.error(`Lỗi điều chỉnh kho: ${err.message || "Đã xảy ra lỗi"}`);
     },
   });
 
@@ -72,6 +93,24 @@ export const StaffInventory: React.FC = () => {
     reason: string;
   }) => {
     adjustMutation.mutate(data);
+  };
+
+  // 4. Create Inventory Mutation
+  const createInventoryMutation = useMutation({
+    mutationFn: (bookId: string) => inventoryService.createInventory({ bookId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-logs"] });
+      setIsCreateModalOpen(false);
+      toast.success("Khởi tạo kho chứa mới thành công!");
+    },
+    onError: (err: any) => {
+      toast.error(`Lỗi tạo kho chứa: ${err.message || "Đã xảy ra lỗi"}`);
+    },
+  });
+
+  const handleCreateSubmit = async (bookId: string) => {
+    return createInventoryMutation.mutateAsync(bookId);
   };
 
   if (isLoading) {
@@ -104,138 +143,59 @@ export const StaffInventory: React.FC = () => {
 
   // Stats computation
   const totalBooks = items.length;
-  const totalStock = items.reduce((acc, it) => acc + it.stock, 0);
-  const lowStockCount = items.filter((it) => it.stock <= it.minAlert).length;
-  const totalLogsCount = items.length > 0 ? 156 : 0; // Mock historical transactions similar to Stitch HTML mockup
+  const totalStock = items.reduce((acc, it) => acc + it.quantity, 0);
+  const lowStockCount = items.filter((it) => it.quantity <= 10).length;
+  const totalLogsCount = logTotalLogs;
 
   return (
     <div className="space-y-6">
-      {/* Top Navbar Style Search & Header block */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-black text-slate-850 dark:text-slate-100 uppercase tracking-wider">
-            Quản lý Kho hàng & Nhật ký
-          </h2>
-          <p className="text-xs text-slate-450 dark:text-slate-400 font-semibold mt-1">
-            Theo dõi tồn kho thực tế và quản lý biến động hàng hóa trong kho NestJS Bookstore.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm sách, SKU, kệ vị trí..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-sm"
-            />
-          </div>
-          <button
-            onClick={() => setIsAdjustModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:opacity-90 transition-all uppercase tracking-wider"
-          >
-            <Plus className="h-4.5 w-4.5" />
-            Điều chỉnh kho
-          </button>
-        </div>
-      </div>
+      {/* Top Search & Actions Header Component */}
+      <InventoryHeader
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onAdjustClick={() => setIsAdjustModalOpen(true)}
+        onCreateClick={() => setIsCreateModalOpen(true)}
+      />
 
       {/* Alert Cards for Low stock */}
       <InventoryAlerts items={items} />
 
-      {/* Dashboard Stats Bento Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-3">
-            <span className="p-2 bg-primary/10 text-primary rounded-lg">
-              <BookOpen className="h-5 w-5" />
-            </span>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-              +2% so với tháng trước
-            </span>
-          </div>
-          <p className="text-[10px] text-slate-450 dark:text-slate-500 font-extrabold uppercase tracking-wider">
-            Tổng đầu sách
-          </p>
-          <h3 className="text-xl font-black mt-1 font-mono text-slate-850 dark:text-slate-100">
-            {totalBooks.toLocaleString("vi-VN")}
-          </h3>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-3">
-            <span className="p-2 bg-emerald-500/10 text-emerald-600 rounded-lg">
-              <Layers className="h-5 w-5" />
-            </span>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-              Tồn kho ổn định
-            </span>
-          </div>
-          <p className="text-[10px] text-slate-450 dark:text-slate-500 font-extrabold uppercase tracking-wider">
-            Tổng tồn kho
-          </p>
-          <h3 className="text-xl font-black mt-1 font-mono text-slate-850 dark:text-slate-100">
-            {totalStock.toLocaleString("vi-VN")}
-          </h3>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-3">
-            <span className="p-2 bg-rose-500/10 text-rose-600 rounded-lg">
-              <AlertTriangle className="h-5 w-5" />
-            </span>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                lowStockCount > 0
-                  ? "text-rose-600 bg-rose-500/10 animate-pulse"
-                  : "text-emerald-600 bg-emerald-500/10"
-              }`}
-            >
-              {lowStockCount > 0 ? "Cần nhập hàng" : "An toàn"}
-            </span>
-          </div>
-          <p className="text-[10px] text-slate-450 dark:text-slate-500 font-extrabold uppercase tracking-wider">
-            Sách sắp hết hàng
-          </p>
-          <h3 className="text-xl font-black mt-1 font-mono text-slate-850 dark:text-slate-100">
-            {lowStockCount}
-          </h3>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-3">
-            <span className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-lg">
-              <Activity className="h-5 w-5" />
-            </span>
-            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-              24 giờ qua
-            </span>
-          </div>
-          <p className="text-[10px] text-slate-450 dark:text-slate-500 font-extrabold uppercase tracking-wider">
-            Giao dịch kho
-          </p>
-          <h3 className="text-xl font-black mt-1 font-mono text-slate-850 dark:text-slate-100">
-            {totalLogsCount}
-          </h3>
-        </div>
-      </div>
+      {/* KPI Stats Bento Grid Component */}
+      <InventoryStats
+        totalBooks={totalBooks}
+        totalStock={totalStock}
+        lowStockCount={lowStockCount}
+        totalLogsCount={totalLogsCount}
+      />
 
       {/* Main Bento Layout Content */}
       <div className="grid grid-cols-12 gap-6">
         {/* Current Inventory Table (Left Section) */}
         <InventoryTable
           items={filteredItems}
-          selectedId={selectedId}
-          onSelectId={setSelectedId}
+          onRowClick={(item) => {
+            setClickedInventoryItem(item);
+            setIsLogsDialogOpen(true);
+          }}
         />
 
-        {/* Recent Inventory Logs (Right Section) */}
+        {/* Recent Inventory Logs Panel (Right Section) */}
         <div className="col-span-12 lg:col-span-4">
           <InventoryLogsPanel
-            selectedBookTitle={selectedBookTitle}
+            selectedBookTitle=""
             logs={selectedLogs}
             isLoading={isLoadingLogs}
+            page={logPage}
+            totalPages={logTotalPages}
+            totalLogs={logTotalLogs}
+            onPageChange={setLogPage}
+            typeFilter={logType}
+            onTypeFilterChange={setLogType}
+            fromDate={logFromDate}
+            onFromDateChange={setLogFromDate}
+            toDate={logToDate}
+            onToDateChange={setLogToDate}
+            warehouseItems={items}
           />
         </div>
       </div>
@@ -247,6 +207,22 @@ export const StaffInventory: React.FC = () => {
         items={items}
         onSubmit={handleAdjustSubmit}
         isSubmitting={adjustMutation.isPending}
+      />
+
+      {/* Initialize New Inventory Modal Popup */}
+      <InventoryCreateModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        existingInventoryItems={items}
+        onSuccess={handleCreateSubmit}
+      />
+
+      {/* Dialog showing detailed logs for selected row */}
+      <InventoryDetailLogsDialog
+        isOpen={isLogsDialogOpen}
+        onClose={() => setIsLogsDialogOpen(false)}
+        inventoryId={clickedInventoryItem?.id || ""}
+        bookTitle={clickedInventoryItem?.book?.title || ""}
       />
     </div>
   );

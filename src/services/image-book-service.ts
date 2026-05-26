@@ -14,6 +14,8 @@ export interface BookImageResponse {
 }
 
 export const imageBookService = {
+  // LƯU Ý: Endpoint /v1/book-images/book/:bookId hiện đã bị đóng (commented out) ở backend NestJS.
+  // Chi tiết hình ảnh của sách được lấy trực tiếp thông qua API chi tiết sách (bookService.getBookById).
   getImagesByBookId: async (bookId: string): Promise<BookImageResponse> => {
     const response = await api.get<BookImageResponse>(`/v1/book-images/book/${bookId}`);
     return response.data;
@@ -22,7 +24,9 @@ export const imageBookService = {
   uploadImages: async (bookId: string, files: File[]): Promise<BookImageResponse> => {
     const formData = new FormData();
     formData.append("bookId", bookId);
-    formData.append("position", "IMAGE_BOOK");
+    
+    // Bỏ trường "position" vì DTO trên NestJS (BookImageRequestDto) chỉ định nghĩa duy nhất "bookId".
+    // Gửi thêm "position" sẽ kích hoạt ValidationPipe (forbidNonWhitelisted: true) và gây lỗi 400.
     files.forEach((file) => {
       formData.append("files", file);
     });
@@ -40,3 +44,4 @@ export const imageBookService = {
     return response.data;
   },
 };
+

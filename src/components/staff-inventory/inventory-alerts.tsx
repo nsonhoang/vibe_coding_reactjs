@@ -9,7 +9,7 @@ interface InventoryAlertsProps {
 }
 
 export const InventoryAlerts: React.FC<InventoryAlertsProps> = ({ items }) => {
-  const lowStockItems = items.filter(it => it.stock <= it.minAlert);
+  const lowStockItems = items.filter(it => it.quantity <= 10);
 
   if (lowStockItems.length === 0) return null;
 
@@ -27,7 +27,7 @@ export const InventoryAlerts: React.FC<InventoryAlertsProps> = ({ items }) => {
             </div>
             <CardTitle className="text-xs font-bold mt-2 text-foreground line-clamp-1">{it.book?.title || "Sách không tên"}</CardTitle>
             <CardDescription className="text-[10px]">
-              Số lượng hiện tại: <span className="font-extrabold text-rose-600">{it.stock}</span> (Giới hạn cảnh báo: {it.minAlert})
+              Số lượng hiện tại: <span className="font-extrabold text-rose-600">{it.quantity}</span> (Mức tối thiểu: 10)
             </CardDescription>
           </CardHeader>
         </Card>

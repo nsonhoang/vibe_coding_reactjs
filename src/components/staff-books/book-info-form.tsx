@@ -1,6 +1,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 import type { BookStatus } from "@/services/book-service";
+import { formatVNDInput, parseVNDInput } from "@/lib/utils";
 
 interface BookInfoFormProps {
   title: string;
@@ -40,14 +41,20 @@ export const BookInfoForm: React.FC<BookInfoFormProps> = ({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider block">Giá bán (₫)</label>
-          <Input
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(Number(e.target.value))}
-            className="bg-card border-border/80 h-9 text-xs focus-visible:ring-primary"
-            disabled={isSaving}
-          />
+          <label className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider block">Giá bán (VND)</label>
+          <div className="relative">
+            <Input
+              type="text"
+              value={formatVNDInput(price)}
+              onChange={(e) => setPrice(parseVNDInput(e.target.value))}
+              placeholder="0"
+              className="bg-card border-border/80 h-9 pr-9 text-xs focus-visible:ring-primary font-mono font-bold"
+              disabled={isSaving}
+            />
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-extrabold pointer-events-none select-none">
+              ₫
+            </span>
+          </div>
         </div>
 
         <div className="space-y-1.5">

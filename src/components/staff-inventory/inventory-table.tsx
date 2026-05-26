@@ -5,14 +5,16 @@ import type { InventoryItem } from "@/services/inventory-service";
 
 interface InventoryTableProps {
   items: InventoryItem[];
-  selectedId: string;
-  onSelectId: (id: string) => void;
+  selectedId?: string;
+  onSelectId?: (id: string) => void;
+  onRowClick?: (item: InventoryItem) => void;
 }
 
 export const InventoryTable: React.FC<InventoryTableProps> = ({
   items,
   selectedId,
   onSelectId,
+  onRowClick,
 }) => {
   return (
     <Card className="col-span-12 lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex flex-col">
@@ -71,12 +73,15 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                 const bookImages = (it.book as any)?.images || [];
                 const coverUrl = bookImages.length > 0 ? bookImages[0] : "";
 
-                const isSelected = selectedId === it.id;
+                const isSelected = selectedId ? selectedId === it.id : false;
 
                 return (
                   <tr
                     key={it.id}
-                    onClick={() => onSelectId(it.id)}
+                    onClick={() => {
+                      if (onSelectId) onSelectId(it.id);
+                      if (onRowClick) onRowClick(it);
+                    }}
                     className={`cursor-pointer transition-all border-l-2 ${
                       isSelected
                         ? "bg-primary/5 dark:bg-primary/10 border-l-primary"
@@ -108,7 +113,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                       {categoryNames}
                     </td>
                     <td className="px-5 py-3.5 font-extrabold font-mono text-xs text-slate-900 dark:text-white">
-                      {it.stock} cuốn
+                      {it.quantity} cuốn
                     </td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs font-bold font-mono">
                       {shelfLocation}
@@ -116,23 +121,23 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                     <td className="px-5 py-3.5">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[9px] font-extrabold uppercase ${
-                          it.stock > it.minAlert
+                          it.quantity > 10
                             ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : it.stock > 0
+                            : it.quantity > 0
                             ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                             : "bg-red-500/10 text-red-600 dark:text-red-400"
                         }`}
                       >
                         <span
                           className={`h-1.5 w-1.5 rounded-full ${
-                            it.stock > it.minAlert
+                            it.quantity > 10
                               ? "bg-emerald-500"
-                              : it.stock > 0
+                              : it.quantity > 0
                               ? "bg-amber-500"
                               : "bg-red-500"
                           }`}
                         />
-                        {it.stock > it.minAlert ? "CÒN HÀNG" : it.stock > 0 ? "SẮP HẾT" : "CHÁY HÀNG"}
+                        {it.quantity > 10 ? "CÒN HÀNG" : it.quantity > 0 ? "SẮP HẾT" : "HẾT HÀNG"}
                       </span>
                     </td>
                   </tr>

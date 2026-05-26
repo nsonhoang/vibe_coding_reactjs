@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { formatVNDInput, parseVNDInput } from "@/lib/utils";
 
 interface VoucherDialogProps {
   isOpen: boolean;
@@ -108,37 +109,54 @@ export const VoucherDialog: React.FC<VoucherDialogProps> = ({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <label className="text-slate-400 dark:text-slate-500">Giá trị giảm</label>
-              <Input
-                type="number"
-                value={formDiscountValue}
-                onChange={(e) => setFormDiscountValue(Number(e.target.value))}
-                disabled={!isAddMode}
-                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold"
-              />
+              <div className="relative">
+                <Input
+                  type={formDiscountType === "PERCENTAGE" ? "number" : "text"}
+                  value={formDiscountType === "PERCENTAGE" ? formDiscountValue : formatVNDInput(formDiscountValue)}
+                  onChange={(e) => setFormDiscountValue(formDiscountType === "PERCENTAGE" ? Number(e.target.value) : parseVNDInput(e.target.value))}
+                  disabled={!isAddMode}
+                  className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold pr-8"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-extrabold text-slate-450 pointer-events-none select-none">
+                  {formDiscountType === "PERCENTAGE" ? "%" : "₫"}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-1.5 col-span-2">
-              <label className="text-slate-400 dark:text-slate-500">Đơn hàng tối thiểu (₫)</label>
-              <Input
-                type="number"
-                value={formMinOrderValue}
-                onChange={(e) => setFormMinOrderValue(Number(e.target.value))}
-                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold"
-              />
+              <label className="text-slate-400 dark:text-slate-500">Đơn hàng tối thiểu (VND)</label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  value={formatVNDInput(formMinOrderValue)}
+                  onChange={(e) => setFormMinOrderValue(parseVNDInput(e.target.value))}
+                  className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold pr-8"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-extrabold text-slate-450 pointer-events-none select-none">
+                  ₫
+                </span>
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-slate-400 dark:text-slate-500">Giảm tối đa (₫)</label>
-              <Input
-                type="number"
-                value={formMaxDiscount}
-                onChange={(e) => setFormMaxDiscount(Number(e.target.value))}
-                disabled={formDiscountType !== "PERCENTAGE"}
-                className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold"
-                placeholder={formDiscountType !== "PERCENTAGE" ? "Không giới hạn" : "Tối đa"}
-              />
+              <label className="text-slate-400 dark:text-slate-500">Giảm tối đa (VND)</label>
+              <div className="relative">
+                <Input
+                  type={formDiscountType === "PERCENTAGE" ? "text" : "text"}
+                  value={formDiscountType !== "PERCENTAGE" ? "" : formatVNDInput(formMaxDiscount)}
+                  onChange={(e) => setFormMaxDiscount(parseVNDInput(e.target.value))}
+                  disabled={formDiscountType !== "PERCENTAGE"}
+                  className="bg-card border-slate-200 dark:border-slate-850 text-xs focus:ring-1 focus:ring-[#00288e] rounded-lg font-mono font-bold pr-8"
+                  placeholder={formDiscountType !== "PERCENTAGE" ? "Không áp dụng" : "Mức tối đa"}
+                />
+                {formDiscountType === "PERCENTAGE" && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-extrabold text-slate-450 pointer-events-none select-none">
+                    ₫
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1.5">

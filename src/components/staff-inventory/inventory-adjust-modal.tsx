@@ -99,7 +99,7 @@ export const InventoryAdjustModal: React.FC<InventoryAdjustModalProps> = ({
               <option value="">-- Chọn sách trong kho --</option>
               {items.map((it) => (
                 <option key={it.id} value={it.id}>
-                  {it.book?.title} (Tồn hiện tại: {it.stock})
+                  {it.book?.title} (Tồn hiện tại: {it.quantity})
                 </option>
               ))}
             </select>

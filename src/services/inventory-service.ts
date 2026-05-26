@@ -3,8 +3,7 @@ import { api } from "@/lib/api-client";
 export interface InventoryItem {
   id: string;
   bookId: string;
-  stock: number;
-  minAlert: number;
+  quantity: number;
   book: {
     id: string;
     title: string;
@@ -12,6 +11,8 @@ export interface InventoryItem {
     categories: { name: string }[];
   };
   logs?: InventoryLog[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InventoryLog {
@@ -62,10 +63,44 @@ export const inventoryService = {
   createInventoryLog: async (data: {
     inventoryId: string;
     change: number;
-    type: "IMPORT" | "EXPORT" | "ADJUST";
+    type: "IMPORT" | "EXPORT" | "ADJUST" | "IN" | "OUT";
     reason?: string;
   }): Promise<InventoryLogResponse> => {
-    const response = await api.post<InventoryLogResponse>("/v1/inventory/logs", data);
+    let mappedType: "IN" | "OUT" | "ADJUST" = "ADJUST";
+    if (data.type === "IMPORT" || data.type === "IN") {
+      mappedType = "IN";
+    } else if (data.type === "EXPORT" || data.type === "OUT") {
+      mappedType = "OUT";
+    }
+
+    const response = await api.post<InventoryLogResponse>("/v1/inventory/logs", {
+      ...data,
+      type: mappedType,
+    });
+    return response.data;
+  },
+
+  getInventoryLogs: async (params?: {
+    page?: number;
+    limit?: number;
+    inventoryId?: string;
+    type?: "IN" | "OUT" | "ADJUST";
+    from?: string;
+    to?: string;
+  }): Promise<{
+    success: boolean;
+    message?: string;
+    data: {
+      data: InventoryLog[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    };
+  }> => {
+    const response = await api.get("/v1/inventory/logs", { params });
     return response.data;
   },
 

@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { imageBookService } from "@/services/image-book-service";
 import { bookService } from "@/services/book-service";
 import type { Book } from "@/services/book-service";
+import { toast } from "sonner";
 
 import { DetailGalleryPanel } from "./detail-gallery-panel";
 import { DetailInfoPanel } from "./detail-info-panel";
@@ -22,7 +23,6 @@ export const BookDetailDialog: React.FC<BookDetailDialogProps> = ({
   onClose,
 }) => {
   const queryClient = useQueryClient();
-  const [selectedLargeImage, setSelectedLargeImage] = useState<string | null>(null);
 
   // Sync default large image to thumbnail
   const coverUrl = book.thumbnail
@@ -45,9 +45,13 @@ export const BookDetailDialog: React.FC<BookDetailDialogProps> = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["book-details", book.id] });
       queryClient.invalidateQueries({ queryKey: ["books"] });
+      toast.success("Tải lên danh sách ảnh chi tiết thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi upload ảnh phụ: ${err.response?.data?.message || err.message}`);
+      const errorMsg = err.response?.data?.errors
+        ? (Array.isArray(err.response.data.errors) ? err.response.data.errors.join(", ") : err.response.data.errors)
+        : (err.response?.data?.message || err.message);
+      toast.error(`Lỗi tải ảnh chi tiết: ${errorMsg}`);
     },
   });
 
@@ -57,10 +61,13 @@ export const BookDetailDialog: React.FC<BookDetailDialogProps> = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["book-details", book.id] });
       queryClient.invalidateQueries({ queryKey: ["books"] });
-      setSelectedLargeImage(null);
+      toast.success("Xóa ảnh chi tiết khỏi album thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi xóa ảnh phụ: ${err.response?.data?.message || err.message}`);
+      const errorMsg = err.response?.data?.errors
+        ? (Array.isArray(err.response.data.errors) ? err.response.data.errors.join(", ") : err.response.data.errors)
+        : (err.response?.data?.message || err.message);
+      toast.error(`Lỗi xóa ảnh chi tiết: ${errorMsg}`);
     },
   });
 
@@ -89,8 +96,6 @@ export const BookDetailDialog: React.FC<BookDetailDialogProps> = ({
               bookTitle={currentBook.title}
               coverUrl={coverUrl}
               detailImages={detailImages}
-              selectedLargeImage={selectedLargeImage}
-              setSelectedLargeImage={setSelectedLargeImage}
               isLoadingDetails={isLoadingDetails}
               uploadImagesMutation={uploadImagesMutation}
               deleteImageMutation={deleteImageMutation}

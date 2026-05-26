@@ -5,6 +5,7 @@ import { Search, Loader2, Calendar, Filter, X, CreditCard, ShoppingBag } from "l
 import { OrdersTable } from "@/components/staff-orders/orders-table";
 import { OrderDialog } from "@/components/staff-orders/order-dialog";
 import { orderService, type Order } from "@/services/order-service";
+import { toast } from "sonner";
 
 export const StaffOrders: React.FC = () => {
   const queryClient = useQueryClient();
@@ -52,10 +53,10 @@ export const StaffOrders: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       setIsDialogOpen(false);
-      alert("Cập nhật trạng thái đơn hàng thành công!");
+      toast.success("Cập nhật trạng thái đơn hàng thành công!");
     },
     onError: (err: any) => {
-      alert(`Lỗi cập nhật trạng thái đơn hàng: ${err.message}`);
+      toast.error(`Lỗi cập nhật trạng thái đơn hàng: ${err.message}`);
     },
   });
 

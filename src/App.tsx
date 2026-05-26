@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Login } from "./pages/login";
 import { ProtectedRoute } from "./components/auth/protected-route";
+import { PublicRoute } from "./components/auth/public-route";
 import { DashboardLayout } from "./components/layout/dashboard-layout";
 
 // Admin Views
@@ -17,6 +18,7 @@ import { StaffCategories } from "./pages/staff/categories";
 import { StaffOrders } from "./pages/staff/orders";
 import { StaffPromotions } from "./pages/staff/promotions";
 import { StaffInventory } from "./pages/staff/inventory";
+import { StaffInventoryLogs } from "./pages/staff/inventory-logs";
 import { StaffShipments } from "./pages/staff/shipments";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -27,7 +29,14 @@ const App: React.FC = () => {
       <Toaster position="top-right" richColors />
       <Routes>
         {/* Public Login Route */}
-        <Route path="/login" element={<Login />} />
+        <Route 
+          path="/login" 
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          } 
+        />
 
         {/* Admin Dashboard Protected Routes */}
         <Route 
@@ -61,6 +70,7 @@ const App: React.FC = () => {
           <Route path="orders" element={<StaffOrders />} />
           <Route path="promotions" element={<StaffPromotions />} />
           <Route path="inventory" element={<StaffInventory />} />
+          <Route path="inventory/logs" element={<StaffInventoryLogs />} />
           <Route path="shipments" element={<StaffShipments />} />
         </Route>
 

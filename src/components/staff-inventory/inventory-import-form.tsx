@@ -46,7 +46,7 @@ export const InventoryImportForm: React.FC<InventoryImportFormProps> = ({
               <option value="" disabled>-- Chọn đầu sách --</option>
               {items.map((it) => (
                 <option key={it.id} value={it.id}>
-                  {it.book?.title || "Sách không tên"} (Kho: {it.stock})
+                  {it.book?.title || "Sách không tên"} (Kho: {it.quantity})
                 </option>
               ))}
             </select>
