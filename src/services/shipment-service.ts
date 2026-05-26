@@ -4,19 +4,37 @@ import type { PaginatedResult } from "./book-service";
 export interface Shipment {
   id: string;
   orderId: string;
-  courier: string;
-  trackingCode: string;
-  destination: string;
-  status: "IN_TRANSIT" | "DELIVERED" | "PICKING_UP" | string;
-  estDate?: string;
-  shippingFee: number;
+  ghnOrderCode?: string | null;
+  shippingService: string;
+  status: string;
   codAmount: number;
+  shippingFee: number;
+  expectedDelivery?: string | null;
+  deliveredAt?: string | null;
+  shippedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  order: {
+  order?: {
+    id: string;
     code: string;
-    customerName: string;
+    status: string;
+    paymentMethod: string;
+    subtotalAmount: number;
+    discountAmount: number;
+    shippingFee: number;
+    totalAmount: number;
+    shippingName: string;
     shippingPhone: string;
+    shippingAddress: string;
+    shippingWard: string;
+    shippingWardCode?: string | null;
+    shippingDistrict: string;
+    shippingDistrictId?: number | null;
+    shippingCity: string;
+    shippingCountry: string;
+    note?: string | null;
+    createdAt: string;
+    updatedAt: string;
   };
 }
 

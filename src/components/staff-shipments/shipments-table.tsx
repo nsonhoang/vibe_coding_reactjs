@@ -51,17 +51,24 @@ export const ShipmentsTable: React.FC<ShipmentsTableProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-150 dark:divide-slate-800/80">
             {shipments.map((shp) => {
-              const estDateStr = shp.estDate
-                ? new Date(shp.estDate).toLocaleDateString("vi-VN", {
+              const estDateStr = shp.expectedDelivery
+                ? new Date(shp.expectedDelivery).toLocaleDateString("vi-VN", {
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric",
                   })
                 : "Đang tính toán";
 
-              const isDelivered = shp.status === "DELIVERED";
-              const isInTransit = shp.status === "IN_TRANSIT";
-              const isPickingUp = shp.status === "PICKING_UP" || shp.status === "PENDING";
+              const statusLower = (shp.status || "").toLowerCase();
+              const isDelivered = statusLower === "delivered";
+              const isInTransit = ["transporting", "sorting", "delivering", "money_collect_delivering", "in_transit"].includes(statusLower);
+              const isCancelled = ["cancel", "cancelled", "canceled"].includes(statusLower);
+              const isReturning = ["return", "returning", "returned"].includes(statusLower);
+
+              const customerName = shp.order?.shippingName || "Khách ẩn";
+              const destinationStr = shp.order
+                ? `${shp.order.shippingAddress}, ${shp.order.shippingWard}, ${shp.order.shippingDistrict}, ${shp.order.shippingCity}`
+                : "Chưa xác định";
 
               return (
                 <tr
@@ -77,11 +84,11 @@ export const ShipmentsTable: React.FC<ShipmentsTableProps> = ({
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase">
-                        {(shp.order?.customerName || "KA").substring(0, 2)}
+                        {customerName.substring(0, 2)}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          {shp.order?.customerName || "Khách ẩn"}
+                          {customerName}
                         </span>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold">
                           {shp.order?.shippingPhone || "—"}
@@ -91,13 +98,13 @@ export const ShipmentsTable: React.FC<ShipmentsTableProps> = ({
                   </td>
                   <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-350 text-xs">
                     <span className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-250 font-bold uppercase tracking-wider text-[9px]">
-                      {shp.courier}
+                      {shp.shippingService || "GHN"}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
                       <span className="font-mono text-xs font-black text-slate-805 dark:text-slate-105">
-                        {shp.trackingCode || "Chưa tạo mã"}
+                        {shp.ghnOrderCode || "Chưa tạo mã"}
                       </span>
                       <span className="text-[9px] text-slate-400 dark:text-slate-500 italic mt-0.5">
                         GHN Express
@@ -105,9 +112,9 @@ export const ShipmentsTable: React.FC<ShipmentsTableProps> = ({
                     </div>
                   </td>
                   <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">
-                    <div className="flex items-center gap-1.5 max-w-[150px] truncate" title={shp.destination}>
+                    <div className="flex items-center gap-1.5 max-w-[180px] truncate" title={destinationStr}>
                       <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-450 dark:text-slate-500" />
-                      <span className="font-semibold text-slate-600 dark:text-slate-350">{shp.destination}</span>
+                      <span className="font-semibold text-slate-600 dark:text-slate-350">{destinationStr}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs font-semibold">
@@ -124,10 +131,20 @@ export const ShipmentsTable: React.FC<ShipmentsTableProps> = ({
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                         TRUNG CHUYỂN
                       </span>
+                    ) : isCancelled ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-red-500/10 text-red-600 dark:text-red-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                        ĐÃ HỦY
+                      </span>
+                    ) : isReturning ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                        TRẢ HÀNG
+                      </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 uppercase">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        ĐANG CHUẨN BỊ
+                        {shp.status.replace(/_/g, " ")}
                       </span>
                     )}
                   </td>

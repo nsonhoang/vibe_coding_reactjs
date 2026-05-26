@@ -1,9 +1,15 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { FileText, Loader2 } from "lucide-react";
 import type { Order } from "@/services/order-service";
+
+import { StepTimeline } from "./step-timeline";
+import { CustomerCard } from "./customer-card";
+import { OperationsCard } from "./operations-card";
+import { OrderItemsList } from "./order-items-list";
+import { FinancialLedger } from "./financial-ledger";
+import { GHNPanel } from "./ghn-panel";
 
 interface OrderDialogProps {
   isOpen: boolean;
@@ -19,7 +25,7 @@ interface OrderDialogProps {
   isSaving: boolean;
 }
 
-export const OrderDialog: React.FC<OrderDialogProps> = ({
+export const OrderDialog: React.FC<OrderDialogProps> = React.memo(({
   isOpen,
   onClose,
   selectedOrder,
@@ -32,113 +38,141 @@ export const OrderDialog: React.FC<OrderDialogProps> = ({
   onSave,
   isSaving,
 }) => {
-  const itemsSummary = selectedOrder?.items
-    ?.map((it: any) => `${it.book?.title || "Sách"} (x${it.quantity})`)
-    .join(", ") || "Không rõ";
+  // Safe computation of overall invoice totals
+  const billingSummary = useMemo(() => {
+    if (!selectedOrder) return { subtotal: 0, discount: 0, shipping: 0, total: 0 };
+    return {
+      subtotal: selectedOrder.subtotalAmount || 0,
+      discount: selectedOrder.discountAmount || 0,
+      shipping: selectedOrder.shippingFee || 0,
+      total: selectedOrder.totalAmount ?? selectedOrder.totalPrice ?? 0
+    };
+  }, [selectedOrder]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isSaving) onClose(); }}>
-      <DialogContent className="max-w-lg bg-card border-border text-foreground">
-        <DialogHeader>
-          <DialogTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-            <FileText className="h-4.5 w-4.5 text-primary" />
-            Chi tiết vận đơn #{selectedOrder?.id?.substring(0, 8)}
-          </DialogTitle>
-          <DialogDescription className="text-[11px]">
-            Xem hồ sơ giao nhận và cập nhật tiến trình bưu tá chuyển hàng.
-          </DialogDescription>
+      {/* 
+        Responsive Styling:
+        - MOBILE: snaps directly as a high-end Bottom Sheet (bottom-0 w-full h-[85vh] rounded-t-2xl).
+        - PC (Desktop): centers as a wide side-by-side grid layout (md:top-[50%] md:left-[50%] md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-6xl md:w-full md:h-auto md:max-h-[92vh] md:rounded-xl).
+        - Layout: Flex column layout with header and footer shrink-0 anchors, leaving only the center scrollable.
+      */}
+      <DialogContent className="fixed bottom-0 top-auto left-0 right-0 translate-y-0 translate-x-0 md:top-[50%] md:left-[50%] md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-7xl md:w-[94vw] w-full h-[85vh] md:h-[88vh] md:max-h-[88vh] bg-card border-border text-foreground p-5 md:p-6 rounded-t-2xl md:rounded-xl shadow-2xl flex flex-col justify-between overflow-hidden transition-all duration-300">
+        
+        {/* Mobile-only drag-drawer indicator bar */}
+        <div className="w-12 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-3 md:hidden shrink-0" />
+
+        {/* Modal Header (Static) */}
+        <DialogHeader className="pb-3 border-b border-border/40 shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <DialogTitle className="text-sm md:text-base font-black uppercase tracking-wider flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Đơn hàng #{selectedOrder?.code || selectedOrder?.id?.substring(0, 8)}
+              </DialogTitle>
+              <DialogDescription className="text-[11px] text-muted-foreground mt-0.5">
+                Cập nhật lộ trình bưu tá đóng hàng và giao vận đối tác.
+              </DialogDescription>
+            </div>
+            
+            {/* Elegant Header Status Badge */}
+            {selectedOrder && (
+              <div>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                  selectedOrder.status === "COMPLETED" || selectedOrder.status === "DELIVERED"
+                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
+                    : selectedOrder.status === "SHIPPED"
+                    ? "bg-blue-500/10 border-blue-500/25 text-blue-600 dark:text-blue-400"
+                    : selectedOrder.status === "PROCESSING"
+                    ? "bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400"
+                    : selectedOrder.status === "CANCELLED"
+                    ? "bg-rose-500/10 border-rose-500/25 text-rose-600 dark:text-rose-400"
+                    : "bg-slate-500/10 border-slate-500/25 text-slate-650 dark:text-slate-400"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    selectedOrder.status === "COMPLETED" || selectedOrder.status === "DELIVERED"
+                      ? "bg-emerald-500"
+                      : selectedOrder.status === "SHIPPED"
+                      ? "bg-blue-500"
+                      : selectedOrder.status === "PROCESSING"
+                      ? "bg-amber-500"
+                      : selectedOrder.status === "CANCELLED"
+                      ? "bg-rose-500"
+                      : "bg-slate-500"
+                  }`} />
+                  {selectedOrder.status}
+                </span>
+              </div>
+            )}
+          </div>
         </DialogHeader>
 
+        {/* Scrollable Main Content Area */}
         {selectedOrder && (
-          <div className="space-y-4 py-2 text-xs">
-            {/* Customer details info card */}
-            <div className="border border-border/80 bg-accent/10 rounded-lg p-3 space-y-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] text-muted-foreground font-bold">Người nhận hàng:</span>
-                  <p className="font-bold text-foreground mt-0.5">{selectedOrder.customerName}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-muted-foreground font-bold">Số điện thoại:</span>
-                  <p className="font-mono text-foreground mt-0.5">{selectedOrder.shippingPhone}</p>
-                </div>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground font-bold">Địa chỉ giao hàng:</span>
-                <p className="text-foreground/80 mt-0.5 leading-relaxed">{selectedOrder.shippingAddress}</p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground font-bold">Sản phẩm đặt mua:</span>
-                <p className="text-primary font-bold mt-0.5">{itemsSummary}</p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground font-bold">Tổng thanh toán:</span>
-                <p className="text-foreground font-extrabold text-[13px] mt-0.5">{(selectedOrder.totalPrice || 0).toLocaleString()} ₫</p>
-              </div>
-            </div>
+          <div className="flex-1 overflow-y-auto pr-1.5 space-y-4 py-3 my-2 scrollbar-thin">
+            
+            {/* Stepper Timeline or Cancellation Info Banner */}
+            <StepTimeline status={selectedOrder.status} />
 
-            {/* Status and Logistics Form */}
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="font-bold text-muted-foreground">Trạng thái xử lý bưu kiện</label>
-                <select
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value as Order["status"])}
-                  className="w-full rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary h-[34px]"
-                  disabled={isSaving}
-                >
-                  <option value="PENDING">PENDING (Đang chờ duyệt)</option>
-                  <option value="PROCESSING">PROCESSING (Đã đóng gói / Chờ giao)</option>
-                  <option value="SHIPPED">SHIPPED (Đang bàn giao shipper)</option>
-                  <option value="COMPLETED">COMPLETED (Giao hàng thành công)</option>
-                  <option value="CANCELLED">CANCELLED (Hủy đơn hàng)</option>
-                </select>
+            {/* Symmetrical Two-Column Layout on PC, Single-Column on Mobile */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              
+              {/* Left Column (7/12 width) - Customer Address details & Status action inputs form */}
+              <div className="lg:col-span-7 space-y-4">
+                <CustomerCard 
+                  shippingName={selectedOrder.shippingName}
+                  customerName={selectedOrder.customerName}
+                  shippingPhone={selectedOrder.shippingPhone}
+                  shippingAddress={selectedOrder.shippingAddress}
+                  shippingWard={selectedOrder.shippingWard}
+                  shippingDistrict={selectedOrder.shippingDistrict}
+                  shippingCity={selectedOrder.shippingCity}
+                  note={selectedOrder.note}
+                />
+
+                <OperationsCard 
+                  formStatus={formStatus}
+                  setFormStatus={setFormStatus}
+                  formShipper={formShipper}
+                  setFormShipper={setFormShipper}
+                  formTracking={formTracking}
+                  setFormTracking={setFormTracking}
+                  isSaving={isSaving}
+                />
               </div>
 
-              {/* Show logistics only if processing or shipping */}
-              {formStatus !== "PENDING" && formStatus !== "CANCELLED" && (
-                <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-3">
-                  <div className="space-y-1">
-                    <label className="font-bold text-muted-foreground">Đối tác giao nhận</label>
-                    <select
-                      value={formShipper}
-                      onChange={(e) => setFormShipper(e.target.value)}
-                      className="w-full rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary h-[34px]"
-                      disabled={isSaving}
-                    >
-                      <option value="Giao Hàng Tiết Kiệm (GHTK)">Giao Hàng Tiết Kiệm (GHTK)</option>
-                      <option value="Giao Hàng Nhanh (GHN)">Giao Hàng Nhanh (GHN)</option>
-                      <option value="Viettel Post">Viettel Post</option>
-                      <option value="J&T Express">J&T Express</option>
-                    </select>
-                  </div>
+              {/* Right Column (5/12 width) - Ordered Items list & Detailed financial ledger */}
+              <div className="lg:col-span-5 space-y-4">
+                <OrderItemsList items={selectedOrder.items} />
 
-                  <div className="space-y-1">
-                    <label className="font-bold text-muted-foreground">Mã vận đơn bưu tá</label>
-                    <Input
-                      placeholder="E.g. GHTK-89230489"
-                      value={formTracking}
-                      onChange={(e) => setFormTracking(e.target.value)}
-                      className="bg-card border-border font-mono h-[34px]"
-                      disabled={isSaving}
-                    />
-                  </div>
-                </div>
-              )}
+                <FinancialLedger 
+                  subtotalAmount={billingSummary.subtotal}
+                  discountAmount={billingSummary.discount}
+                  shippingFee={billingSummary.shipping}
+                  paymentMethod={selectedOrder.paymentMethod}
+                  totalAmount={billingSummary.total}
+                />
+
+                <GHNPanel shipment={selectedOrder.shipment} />
+              </div>
+
             </div>
           </div>
         )}
 
-        <DialogFooter className="mt-4">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isSaving} className="text-xs">
+        {/* Modal Footer (Static) */}
+        <DialogFooter className="pt-2.5 border-t border-border/40 gap-2 shrink-0">
+          <Button variant="outline" onClick={onClose} disabled={isSaving} className="text-[10px] font-black uppercase tracking-wider h-9 px-4 shadow-xs">
             Quay lại
           </Button>
-          <Button size="sm" onClick={onSave} disabled={isSaving} className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs gap-1.5 cursor-pointer">
-            {isSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+          <Button onClick={onSave} disabled={isSaving} className="bg-primary hover:bg-primary/95 text-primary-foreground font-black text-[10px] uppercase tracking-wider gap-1.5 cursor-pointer h-9 px-5 shadow-sm">
+            {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Cập nhật đơn hàng
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-};
+});
+
+OrderDialog.displayName = "OrderDialog";

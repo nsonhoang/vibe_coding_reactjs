@@ -37,9 +37,9 @@ export const StaffShipments: React.FC = () => {
   });
 
   const shipmentsResponse = shipmentsData?.data;
-  const shipments = shipmentsResponse?.items || [];
+  const shipments = shipmentsResponse?.data || shipmentsResponse?.items || [];
   const meta = shipmentsResponse?.meta;
-  const totalItems = meta?.totalItems || 0;
+  const totalItems = meta?.total || meta?.totalItems || 0;
   const totalPages = meta?.totalPages || 1;
 
   // Quick handler to trigger search
@@ -59,10 +59,22 @@ export const StaffShipments: React.FC = () => {
   };
 
   // Bento Stats Counts (derived or fallback matching Stitch)
-  const countPending = totalItems > 0 ? shipments.filter(s => s.status === "PENDING" || s.status === "PICKING_UP").length : 42;
-  const countShipping = totalItems > 0 ? shipments.filter(s => s.status === "IN_TRANSIT").length : 128;
-  const countDelivered = totalItems > 0 ? shipments.filter(s => s.status === "DELIVERED").length : 1452;
-  const countCancelled = 14; // Fallback from design system
+  const countPending = totalItems > 0 ? shipments.filter(s => {
+    const st = (s.status || "").toLowerCase();
+    return ["ready_to_pick", "picking", "picked", "storing", "waiting_to_pick", "pending", "picking_up"].includes(st);
+  }).length : 42;
+  const countShipping = totalItems > 0 ? shipments.filter(s => {
+    const st = (s.status || "").toLowerCase();
+    return ["transporting", "sorting", "delivering", "money_collect_delivering", "in_transit"].includes(st);
+  }).length : 128;
+  const countDelivered = totalItems > 0 ? shipments.filter(s => {
+    const st = (s.status || "").toLowerCase();
+    return st === "delivered";
+  }).length : 1452;
+  const countCancelled = totalItems > 0 ? shipments.filter(s => {
+    const st = (s.status || "").toLowerCase();
+    return ["cancel", "cancelled", "canceled"].includes(st);
+  }).length : 14;
 
   return (
     <div className="space-y-6">
@@ -164,11 +176,18 @@ export const StaffShipments: React.FC = () => {
               }}
               className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-xs font-bold rounded-lg h-9 w-full px-3 text-slate-700 dark:text-slate-250 outline-none focus:ring-1 focus:ring-primary focus:border-primary"
             >
-              <option value="">Tất cả</option>
-              <option value="PICKING_UP">PICKING_UP</option>
-              <option value="IN_TRANSIT">IN_TRANSIT</option>
-              <option value="DELIVERED">DELIVERED</option>
-              <option value="CANCELLED">CANCELLED</option>
+              <option value="">Tất cả trạng thái</option>
+              <option value="ready_to_pick">Sẵn sàng lấy hàng (ready_to_pick)</option>
+              <option value="picking">Đang lấy hàng (picking)</option>
+              <option value="picked">Đã lấy hàng (picked)</option>
+              <option value="storing">Đang lưu kho (storing)</option>
+              <option value="transporting">Đang luân chuyển (transporting)</option>
+              <option value="sorting">Đang phân loại (sorting)</option>
+              <option value="delivering">Đang giao hàng (delivering)</option>
+              <option value="money_collect_delivering">Đang giao & thu hộ (money_collect_delivering)</option>
+              <option value="delivered">Đã giao hàng (delivered)</option>
+              <option value="cancel">Đã hủy đơn (cancel)</option>
+              <option value="returned">Đã trả hàng (returned)</option>
             </select>
           </div>
 

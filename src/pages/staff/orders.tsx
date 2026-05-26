@@ -63,8 +63,8 @@ export const StaffOrders: React.FC = () => {
   const handleOpenDetail = (ord: Order) => {
     setSelectedOrder(ord);
     setFormStatus(ord.status);
-    setFormShipper(ord.shipment?.courier || "Giao Hàng Tiết Kiệm (GHTK)");
-    setFormTracking(ord.shipment?.trackingCode || "");
+    setFormShipper(ord.shipment?.shippingService || ord.shipment?.courier || "GHN");
+    setFormTracking(ord.shipment?.ghnOrderCode || ord.shipment?.trackingCode || "");
     setIsDialogOpen(true);
   };
 
@@ -96,7 +96,7 @@ export const StaffOrders: React.FC = () => {
   const paginatedResult = ordersData?.data;
   const orders = paginatedResult?.data || paginatedResult?.items || [];
   
-  const totalItems = paginatedResult?.meta?.totalItems || 0;
+  const totalItems = paginatedResult?.meta?.total || paginatedResult?.meta?.totalItems || 0;
   const totalPages = paginatedResult?.meta?.totalPages || 1;
 
   return (

@@ -93,7 +93,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
               {orders.map((ord) => {
                 const itemsSummary = ord.items
-                  ?.map((it: any) => `${it.book?.title || "Sách"} (x${it.quantity})`)
+                  ?.map((it) => `${it.bookTitle || it.book?.title || "Sách"} (x${it.quantity})`)
                   .join(", ") || "Không rõ";
 
                 const dateStr = ord.createdAt
@@ -107,17 +107,21 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                   : "Không rõ";
 
                 return (
-                  <tr key={ord.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/30 transition-colors group">
+                  <tr
+                    key={ord.id}
+                    onClick={() => onOpenDetail(ord)}
+                    className="hover:bg-slate-50/50 dark:hover:bg-slate-850/30 transition-colors group cursor-pointer"
+                  >
                     <td className="px-6 py-4 font-bold text-slate-550 dark:text-slate-450 font-mono text-xs">
                       #{ord.id.substring(0, 8).toUpperCase()}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-200">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase">
-                          {(ord.customerName || "KA").substring(0, 2)}
+                          {(ord.shippingName || ord.customerName || "KA").substring(0, 2)}
                         </div>
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-xs">{ord.customerName}</span>
+                          <span className="text-xs">{ord.shippingName || ord.customerName}</span>
                           <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold">{ord.shippingPhone}</span>
                         </div>
                       </div>
@@ -129,12 +133,12 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                       {itemsSummary}
                     </td>
                     <td className="px-6 py-4 font-black text-xs text-primary dark:text-primary-fixed-dim">
-                      {(ord.totalPrice || 0).toLocaleString()} ₫
+                      {(ord.totalAmount ?? ord.totalPrice ?? 0).toLocaleString()} ₫
                     </td>
                     <td className="px-6 py-4">
                       {getStatusBadge(ord.status)}
                     </td>
-                    <td className="px-6 py-4 text-right space-x-1.5">
+                    <td className="px-6 py-4 text-right space-x-1.5" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="icon-xs"
